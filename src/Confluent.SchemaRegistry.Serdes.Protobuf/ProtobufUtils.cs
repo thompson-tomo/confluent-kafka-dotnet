@@ -15,7 +15,6 @@
 // Refer to LICENSE for more information.
 
 using System;
-using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
 using Google.Protobuf;
@@ -37,16 +36,16 @@ namespace Confluent.SchemaRegistry.Serdes
                 return message;
             }
 
-            if (message is IList &&
-                message.GetType().IsGenericType &&
-                message.GetType().GetGenericTypeDefinition().IsAssignableFrom(typeof(List<>)))
+            if (message.GetType().IsGenericType &&
+                (message.GetType().GetGenericTypeDefinition().IsAssignableFrom(typeof(List<>)) ||
+                 message.GetType().GetGenericTypeDefinition().IsAssignableFrom(typeof(IList<>))))
             {
                 List<object> list = (List<object>)message;
                 return list.Select(it => Transform(ctx, desc, it, fieldTransform)).ToList();
             }
-            else if (message is IDictionary &&
-                     message.GetType().IsGenericType &&
-                     message.GetType().GetGenericTypeDefinition().IsAssignableFrom(typeof(Dictionary<,>)))
+            else if (message.GetType().IsGenericType &&
+                     (message.GetType().GetGenericTypeDefinition().IsAssignableFrom(typeof(Dictionary<,>)) ||
+                      message.GetType().GetGenericTypeDefinition().IsAssignableFrom(typeof(IDictionary<,>))))
             {
                 return message;
             }

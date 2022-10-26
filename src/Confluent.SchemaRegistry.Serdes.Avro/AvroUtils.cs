@@ -62,8 +62,7 @@ namespace Confluent.SchemaRegistry.Serdes
                     foreach (Field f in rs.Fields)
                     {
                         string fullName = rs.Fullname + "." + f.Name;
-                        using (RuleContext.FieldContext fc = ctx.EnterField(ctx, message, fullName, f.Name, GetType(f),
-                                   GetInlineAnnotations(f)))
+                        using (ctx.EnterField(ctx, message, fullName, f.Name, GetType(f), GetInlineAnnotations(f)))
                         {
                             if (message is ISpecificRecord)
                             {
