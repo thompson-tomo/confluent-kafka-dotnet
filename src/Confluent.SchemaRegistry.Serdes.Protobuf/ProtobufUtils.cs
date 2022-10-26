@@ -14,11 +14,15 @@
 //
 // Refer to LICENSE for more information.
 
+extern alias ProtobufNet;
+
 using System;
 using System.Collections.Generic;
+using System.IO;
 using System.Linq;
 using Google.Protobuf;
 using Google.Protobuf.Reflection;
+using IFileSystem = ProtobufNet::Google.Protobuf.Reflection.IFileSystem;
 
 
 namespace Confluent.SchemaRegistry.Serdes
@@ -150,6 +154,41 @@ namespace Confluent.SchemaRegistry.Serdes
             }
             */
             return annotations;
+        }
+
+        public static ProtobufNet::Google.Protobuf.Reflection.FileDescriptorSet Parse(string schema, IDictionary<string, string> imports)
+        {
+            var fds = new ProtobufNet::Google.Protobuf.Reflection.FileDescriptorSet();
+            fds.FileSystem = new ProtobufImports(imports);
+            
+            fds.Add("__root.proto", true, new StringReader(schema));
+            foreach (KeyValuePair<string, string> import in imports)
+            {
+                fds.AddImportPath(import.Key);
+                
+            }
+            fds.Process();
+            return fds;
+        }
+
+        class ProtobufImports : IFileSystem
+        {
+            protected IDictionary<string, string> Imports { get; set; }
+
+            public ProtobufImports(IDictionary<string, string> imports)
+            {
+                Imports = imports;
+            }
+
+            public bool Exists(string path)
+            {
+                return Imports.ContainsKey(path);
+            }
+
+            public TextReader OpenText(string path)
+            {
+                return new StringReader(Imports[path]);
+            }
         }
     }
 }

@@ -47,6 +47,42 @@ namespace Confluent.SchemaRegistry.Serdes.UnitTests
         }
 
         [Fact]
+        public void ParseSchema()
+        {
+            string schema = @"syntax = ""proto3\"";
+            package io.confluent.kafka.serializers.protobuf.test;
+
+            import ""ref.proto"";
+
+            message ReferrerMessage {
+
+                string root_id = 1;
+                ReferencedMessage ref = 2;
+            }";
+            
+            string import = @"syntax = ""proto3"";
+            package io.confluent.kafka.serializers.protobuf.test;
+
+            message ReferencedMessage {
+                string ref_id = 1;
+                bool is_active = 2;
+            }
+            ";
+
+            IDictionary<string, string> imports = new Dictionary<string, string>();
+            imports["ref.proto"] = import;
+
+            var fds = ProtobufUtils.Parse(schema, imports);
+            foreach (var file in fds.Files)
+            {
+                foreach (var messageType in file.MessageTypes)
+                {
+                    Assert.Equal("ReferrerMessage", messageType.Name);
+                }
+            }
+        }
+
+        [Fact]
         public void Null()
         {
             var protoSerializer = new ProtobufSerializer<UInt32Value>(schemaRegistryClient);
