@@ -23,6 +23,10 @@ using System.Linq;
 using Google.Protobuf;
 using Google.Protobuf.Reflection;
 using IFileSystem = ProtobufNet::Google.Protobuf.Reflection.IFileSystem;
+using FileDescriptorSet = ProtobufNet::Google.Protobuf.Reflection.FileDescriptorSet;
+using FileDescriptorProto = ProtobufNet::Google.Protobuf.Reflection.FileDescriptorProto;
+using DescriptorProto = ProtobufNet::Google.Protobuf.Reflection.DescriptorProto;
+using FieldDescriptorProto = ProtobufNet::Google.Protobuf.Reflection.FieldDescriptorProto;
 
 
 namespace Confluent.SchemaRegistry.Serdes
@@ -32,7 +36,7 @@ namespace Confluent.SchemaRegistry.Serdes
     /// </summary>
     public static class ProtobufUtils
     {
-        public static object Transform(RuleContext ctx, MessageDescriptor desc, object message,
+        public static object Transform(RuleContext ctx, DescriptorProto desc, object message,
             FieldTransform fieldTransform)
         {
             if (desc == null || message == null)
@@ -58,15 +62,15 @@ namespace Confluent.SchemaRegistry.Serdes
                 IMessage copy = Copy((IMessage)message);
                 foreach (FieldDescriptor fd in copy.Descriptor.Fields.InDeclarationOrder())
                 {
-                    FieldDescriptor schemaFd = desc.FindFieldByName(fd.Name);
+                    FieldDescriptorProto schemaFd = FindFieldByName(desc, fd.Name);
                     using (ctx.EnterField(ctx, copy, fd.FullName, fd.Name, GetType(fd), GetInlineAnnotations(fd)))
                     {
                         object value = fd.Accessor.GetValue(copy);
-                        MessageDescriptor d = desc;
+                        DescriptorProto d = desc;
                         if (value is IMessage)
                         {
                             // Pass the schema-based descriptor which has the metadata
-                            d = schemaFd.MessageType;
+                            d = null; // TODO
                         }
 
                         object newValue = Transform(ctx, d, value, fieldTransform);
@@ -91,6 +95,19 @@ namespace Confluent.SchemaRegistry.Serdes
 
                 return message;
             }
+        }
+
+        private static FieldDescriptorProto FindFieldByName(DescriptorProto desc, string fieldName)
+        {
+            foreach (FieldDescriptorProto fd in desc.Fields)
+            {
+                if (fd.Name.Equals(fieldName))
+                {
+                    return fd;
+                }
+            }
+
+            return null;
         }
 
         private static IMessage Copy(IMessage message)
@@ -156,9 +173,9 @@ namespace Confluent.SchemaRegistry.Serdes
             return annotations;
         }
 
-        public static ProtobufNet::Google.Protobuf.Reflection.FileDescriptorSet Parse(string schema, IDictionary<string, string> imports)
+        public static FileDescriptorSet Parse(string schema, IDictionary<string, string> imports)
         {
-            var fds = new ProtobufNet::Google.Protobuf.Reflection.FileDescriptorSet();
+            var fds = new FileDescriptorSet();
             fds.FileSystem = new ProtobufImports(imports);
             
             fds.Add("__root.proto", true, new StringReader(schema));
@@ -169,8 +186,8 @@ namespace Confluent.SchemaRegistry.Serdes
             }
             fds.Process();
             return fds;
-        }
-
+        } 
+        
         class ProtobufImports : IFileSystem
         {
             protected IDictionary<string, string> Imports { get; set; }
