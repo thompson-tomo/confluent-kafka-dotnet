@@ -53,11 +53,13 @@ namespace Confluent.SchemaRegistry.Serdes.UnitTests
             package io.confluent.kafka.serializers.protobuf.test;
 
             import ""ref.proto"";
+            import ""confluent/meta.proto"";
 
             message ReferrerMessage {
 
-                string root_id = 1;
-                ReferencedMessage ref = 2;
+                string root_id = 1 [(.confluent.field_meta) = { annotation: ""PII"" }];
+                ReferencedMessage ref = 2 [(.confluent.field_meta).annotation = ""PII""];
+
             }";
             
             string import = @"syntax = ""proto3"";
