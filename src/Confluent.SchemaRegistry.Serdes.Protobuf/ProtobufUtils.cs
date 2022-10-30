@@ -48,7 +48,7 @@ namespace Confluent.SchemaRegistry.Serdes
                 (message.GetType().GetGenericTypeDefinition().IsAssignableFrom(typeof(List<>)) ||
                  message.GetType().GetGenericTypeDefinition().IsAssignableFrom(typeof(IList<>))))
             {
-                List<object> list = (List<object>)message;
+                IList<object> list = (IList<object>)message;
                 return list.Select(it => Transform(ctx, desc, it, fieldTransform)).ToList();
             }
             else if (message.GetType().IsGenericType &&

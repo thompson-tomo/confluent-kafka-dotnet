@@ -62,7 +62,7 @@ namespace Confluent.SchemaRegistry.Serdes
                     return message;
                 }
 
-                List<object> list = (List<object>)message;
+                IList<object> list = (IList<object>)message;
                 JsonSchema subschema = schema.Item;
                 return list.Select((it, index) =>
                     Transform(ctx, subschema, path + '[' + index + ']', it, fieldTransform)).ToList();

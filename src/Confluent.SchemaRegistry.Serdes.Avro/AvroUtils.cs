@@ -47,12 +47,12 @@ namespace Confluent.SchemaRegistry.Serdes
                     return Transform(ctx, us[unionIndex], message, fieldTransform);
                 case Avro.Schema.Type.Array:
                     ArraySchema a = (ArraySchema)schema;
-                    return ((List<object>)message)
+                    return ((IList<object>)message)
                         .Select(it => Transform(ctx, a.ItemSchema, it, fieldTransform))
                         .ToList();
                 case Avro.Schema.Type.Map:
                     MapSchema ms = (MapSchema)schema;
-                    return ((Dictionary<object, object>)message)
+                    return ((IDictionary<object, object>)message)
                         .Select(it =>
                             new KeyValuePair<object, object>(it.Key,
                                 Transform(ctx, ms.ValueSchema, it.Value, fieldTransform)))
