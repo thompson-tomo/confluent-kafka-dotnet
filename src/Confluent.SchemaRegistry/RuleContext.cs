@@ -65,8 +65,7 @@ namespace Confluent.SchemaRegistry
             if (metadata != null && metadata.Annotations != null)
             {
                 // TODO wildcard matching
-                metadata.Annotations.TryGetValue(fullName, out var ann);
-                if (ann != null)
+                if (metadata.Annotations.TryGetValue(fullName, out var ann))
                 {
                     annotations.UnionWith(ann);
                 }

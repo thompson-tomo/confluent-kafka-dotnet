@@ -74,8 +74,7 @@ namespace Confluent.SchemaRegistry
 
                 RuleContext ctx = new RuleContext(source, target,
                     subject, topic, headers, isKey, ruleMode, rule);
-                ruleExecutors.TryGetValue(rule.Type, out IRuleExecutor ruleExecutor);
-                if (ruleExecutor == null)
+                if (!ruleExecutors.TryGetValue(rule.Type, out IRuleExecutor ruleExecutor)) 
                 {
                     return message;
                 }

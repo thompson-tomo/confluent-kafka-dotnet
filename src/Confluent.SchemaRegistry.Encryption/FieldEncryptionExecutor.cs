@@ -168,8 +168,7 @@ namespace Confluent.SchemaRegistry.Encryption
             // Cache on rule context to ensure dek lives during life of entire transformation
             return (Dek)ComputeIfAbsent(ctx.CustomData, key, () =>
             {
-                dekEncryptCache.TryGetValue(key, out Dek dek);
-                if (dek == null)
+                if (!dekEncryptCache.TryGetValue(key, out Dek dek))
                 {
                     byte[] rawDek = cryptor.GenerateKey();
                     IKmsClient kmsClient = KmsClients.Get(kekId);
@@ -188,8 +187,7 @@ namespace Confluent.SchemaRegistry.Encryption
             // Cache on rule context to ensure dek lives during life of entire transformation
             return (Dek)ComputeIfAbsent(ctx.CustomData, key, () =>
             {
-                dekDecryptCache.TryGetValue(key, out Dek dek);
-                if (dek == null)
+                if (!dekDecryptCache.TryGetValue(key, out Dek dek))
                 {
                     IKmsClient kmsClient = KmsClients.Get(kekId);
                     byte[] rawDek = kmsClient.Decrypt(encryptedDek);
