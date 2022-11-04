@@ -22,6 +22,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using Avro.IO;
 using Avro.Generic;
+using Confluent.Kafka;
 
 
 namespace Confluent.SchemaRegistry.Serdes
@@ -36,6 +37,7 @@ namespace Confluent.SchemaRegistry.Serdes
             = new Dictionary<int, DatumReader<GenericRecord>>();
        
         private SemaphoreSlim deserializeMutex = new SemaphoreSlim(1);
+        private IDictionary<string, IRuleExecutor> ruleExecutors = new Dictionary<string, IRuleExecutor>();
 
         private ISchemaRegistryClient schemaRegistryClient;
 
@@ -44,7 +46,7 @@ namespace Confluent.SchemaRegistry.Serdes
             this.schemaRegistryClient = schemaRegistryClient;
         }
 
-        public async Task<GenericRecord> Deserialize(string topic, byte[] array)
+        public async Task<GenericRecord> Deserialize(string topic, Headers headers, byte[] array, bool isKey)
         {
             try
             {
@@ -67,6 +69,7 @@ namespace Confluent.SchemaRegistry.Serdes
                     var writerId = IPAddress.NetworkToHostOrder(reader.ReadInt32());
 
                     DatumReader<GenericRecord> datumReader;
+                    Schema writerSchemaResult = null;
                     await deserializeMutex.WaitAsync().ConfigureAwait(continueOnCapturedContext: false);
                     try
                     {
@@ -82,7 +85,7 @@ namespace Confluent.SchemaRegistry.Serdes
                                 datumReaderBySchemaId.Clear();
                             }
 
-                            var writerSchemaResult = await schemaRegistryClient.GetSchemaAsync(writerId).ConfigureAwait(continueOnCapturedContext: false);
+                            writerSchemaResult = await schemaRegistryClient.GetSchemaAsync(writerId).ConfigureAwait(continueOnCapturedContext: false);
                             if (writerSchemaResult.SchemaType != SchemaType.Avro)
                             {
                                 throw new InvalidOperationException("Expecting writer schema to have type Avro, not {writerSchemaResult.SchemaType}");
@@ -98,7 +101,15 @@ namespace Confluent.SchemaRegistry.Serdes
                         deserializeMutex.Release();
                     }
                     
-                    return datumReader.Read(default(GenericRecord), new BinaryDecoder(stream));
+                    GenericRecord data = datumReader.Read(default(GenericRecord), new BinaryDecoder(stream));
+
+                    if (writerSchemaResult != null)
+                    {
+                        SerdeUtils.ExecuteRules(ruleExecutors, isKey, null, topic, headers, RuleMode.Read, null,
+                            writerSchemaResult, data);
+                    }
+
+                    return data;
                 }
             }
             catch (AggregateException e)

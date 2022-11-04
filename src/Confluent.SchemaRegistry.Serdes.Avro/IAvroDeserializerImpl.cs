@@ -15,12 +15,13 @@
 // Refer to LICENSE for more information.
 
 using System.Threading.Tasks;
+using Confluent.Kafka;
 
 
 namespace Confluent.SchemaRegistry.Serdes
 {
     internal interface IAvroDeserializerImpl<T>
     {
-        Task<T> Deserialize(string topic, byte[] array);
+        Task<T> Deserialize(string topic, Headers headers, byte[] array, bool isKey);
     }
 }

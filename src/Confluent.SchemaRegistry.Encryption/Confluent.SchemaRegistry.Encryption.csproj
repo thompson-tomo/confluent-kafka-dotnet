@@ -14,7 +14,7 @@
         <Title>Confluent.SchemaRegistry.Encryption</Title>
         <AssemblyName>Confluent.SchemaRegistry.Encryption</AssemblyName>
         <VersionPrefix>1.9.3</VersionPrefix>
-        <TargetFrameworks>netcoreapp3.1;</TargetFrameworks>
+        <TargetFrameworks>netcoreapp3.1</TargetFrameworks>
         <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
         <GenerateDocumentationFile>true</GenerateDocumentationFile>
         <!--
@@ -28,6 +28,7 @@
     </ItemGroup>
 
     <ItemGroup>
+        <PackageReference Include="HKDF.Standard" Version="2.0.0" />
         <PackageReference Include="Microsoft.Extensions.Caching.Memory" Version="6.0.1" />
         <PackageReference Include="Miscreant" Version="0.3.3" />
     </ItemGroup>

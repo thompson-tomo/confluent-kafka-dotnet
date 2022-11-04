@@ -44,6 +44,7 @@ namespace Confluent.SchemaRegistry.Serdes
         private Dictionary<string, int> schemaIds = new Dictionary<string, int>();
 
         private SemaphoreSlim serializeMutex = new SemaphoreSlim(1);
+        private IDictionary<string, IRuleExecutor> ruleExecutors = new Dictionary<string, IRuleExecutor>();
 
         public GenericSerializerImpl(
             ISchemaRegistryClient schemaRegistryClient,
@@ -70,6 +71,9 @@ namespace Confluent.SchemaRegistry.Serdes
         /// <param name="topic">
         ///     The topic associated with the data.
         /// </param>
+        /// <param name="headers">
+        ///     The headers associated with the data.
+        /// </param>
         /// <param name="data">
         ///     The object to serialize.
         /// </param>
@@ -79,11 +83,13 @@ namespace Confluent.SchemaRegistry.Serdes
         /// <returns>
         ///     <paramref name="data" /> serialized as a byte array.
         /// </returns>
-        public async Task<byte[]> Serialize(string topic, GenericRecord data, bool isKey)
+        public async Task<byte[]> Serialize(string topic, Headers headers, GenericRecord data, bool isKey)
         {
             try
             {
                 int schemaId;
+                string subject;
+                RegisteredSchema latestSchema = null;
                 global::Avro.RecordSchema writerSchema;
                 await serializeMutex.WaitAsync().ConfigureAwait(continueOnCapturedContext: false);
                 try
@@ -125,7 +131,7 @@ namespace Confluent.SchemaRegistry.Serdes
                     // better to use hash functions based on the writerSchemaString 
                     // object reference, not value.
 
-                    string subject = this.subjectNameStrategy != null
+                    subject = this.subjectNameStrategy != null
                         // use the subject name strategy specified in the serializer config if available.
                         ? this.subjectNameStrategy(new SerializationContext(isKey ? MessageComponentType.Key : MessageComponentType.Value, topic), data.Schema.Fullname)
                         // else fall back to the deprecated config from (or default as currently supplied by) SchemaRegistry.
@@ -139,7 +145,7 @@ namespace Confluent.SchemaRegistry.Serdes
                         int newSchemaId;
                         if (useLatestVersion)
                         {
-                            var latestSchema = await schemaRegistryClient.GetLatestSchemaAsync(subject)
+                            latestSchema = await schemaRegistryClient.GetLatestSchemaAsync(subject)
                                 .ConfigureAwait(continueOnCapturedContext: false);
                             newSchemaId = latestSchema.Id;
                         }
@@ -177,6 +183,12 @@ namespace Confluent.SchemaRegistry.Serdes
                 finally
                 {
                     serializeMutex.Release();
+                }
+
+                if (latestSchema != null)
+                {
+                    SerdeUtils.ExecuteRules(ruleExecutors, isKey, subject, topic, headers, RuleMode.Write, null,
+                        latestSchema, data);
                 }
 
                 using (var stream = new MemoryStream(initialBufferSize))

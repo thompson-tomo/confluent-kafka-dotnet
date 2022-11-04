@@ -7,6 +7,8 @@ namespace Confluent.SchemaRegistry.Encryption
 {
     public class Cryptor
     {
+        private static byte[] EmptyAAD = new byte[] { };
+        
         public Cryptor(DekFormat dekFormat)
         {
             DekFormat = dekFormat;
@@ -16,6 +18,22 @@ namespace Confluent.SchemaRegistry.Encryption
         public DekFormat DekFormat { get; private set; }
 
         public bool IsDeterministic { get; private set; }
+
+
+        public byte[] GenerateKey()
+        {
+            switch (DekFormat)
+            {
+                case DekFormat.AES256_SIV:
+                    // Generate 2 256-bit keys
+                    return Aead.GenerateKey512();
+                case DekFormat.AES128_GCM:
+                    // Generate 128-bit key
+                    return Aead.GenerateNonce(16);
+                default:
+                    throw new ArgumentException();
+            }
+        }
 
         public byte[] Encrypt(byte[] key, byte[] plaintext)
         {
@@ -27,7 +45,6 @@ namespace Confluent.SchemaRegistry.Encryption
                     return EncryptWithAesGcm(key, plaintext);
                 default:
                     throw new ArgumentException();
-                
             }
         }
 
@@ -41,7 +58,6 @@ namespace Confluent.SchemaRegistry.Encryption
                     return DecryptWithAesGcm(key, ciphertext);
                 default:
                     throw new ArgumentException();
-                
             }
         }
 
@@ -49,7 +65,7 @@ namespace Confluent.SchemaRegistry.Encryption
         {
             using (var aead = Aead.CreateAesCmacSiv(key))
             {
-                return aead.Seal(plaintext, null, new byte[] { });
+                return aead.Seal(plaintext, null, EmptyAAD);
             }
         }
 
@@ -57,7 +73,7 @@ namespace Confluent.SchemaRegistry.Encryption
         {
             using (var aead = Aead.CreateAesCmacSiv(key))
             {
-                return aead.Open(ciphertext, null, new byte[] { });
+                return aead.Open(ciphertext, null, EmptyAAD);
             }
         }
 
@@ -112,7 +128,6 @@ namespace Confluent.SchemaRegistry.Encryption
             }
         }
     }
-
 
     public enum DekFormat
     {

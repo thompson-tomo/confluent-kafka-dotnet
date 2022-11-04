@@ -39,6 +39,7 @@ namespace Confluent.SchemaRegistry.Serdes
             = new Dictionary<int, DatumReader<T>>();
 
         private SemaphoreSlim deserializeMutex = new SemaphoreSlim(1);
+        private IDictionary<string, IRuleExecutor> ruleExecutors = new Dictionary<string, IRuleExecutor>();
 
         /// <summary>
         ///     The Avro schema used to read values of type <typeparamref name="T"/>
@@ -97,7 +98,7 @@ namespace Confluent.SchemaRegistry.Serdes
             }
         }
 
-        public async Task<T> Deserialize(string topic, byte[] array)
+        public async Task<T> Deserialize(string topic, Headers headers, byte[] array, bool isKey)
         {
             try
             {
@@ -120,6 +121,7 @@ namespace Confluent.SchemaRegistry.Serdes
                     var writerId = IPAddress.NetworkToHostOrder(reader.ReadInt32());
 
                     DatumReader<T> datumReader;
+                    Schema writerSchemaJson = null;
                     await deserializeMutex.WaitAsync().ConfigureAwait(continueOnCapturedContext: false);
                     try
                     {
@@ -131,7 +133,7 @@ namespace Confluent.SchemaRegistry.Serdes
                                 datumReaderBySchemaId.Clear();
                             }
 
-                            var writerSchemaJson = await schemaRegistryClient.GetSchemaAsync(writerId).ConfigureAwait(continueOnCapturedContext: false);
+                            writerSchemaJson = await schemaRegistryClient.GetSchemaAsync(writerId).ConfigureAwait(continueOnCapturedContext: false);
                             var writerSchema = global::Avro.Schema.Parse(writerSchemaJson.SchemaString);
 
                             datumReader = new SpecificReader<T>(writerSchema, ReaderSchema);
@@ -152,7 +154,15 @@ namespace Confluent.SchemaRegistry.Serdes
                         return datumReader.Read(reuse, new BinaryDecoder(stream));
                     }
 
-                    return datumReader.Read(default(T), new BinaryDecoder(stream));
+                    T data = datumReader.Read(default(T), new BinaryDecoder(stream));
+                    
+                    if (writerSchemaJson != null)
+                    {
+                        SerdeUtils.ExecuteRules(ruleExecutors, isKey, null, topic, headers, RuleMode.Read, null,
+                            writerSchemaJson, data);
+                    }
+
+                    return data;
                 }
             }
             catch (AggregateException e)
