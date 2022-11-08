@@ -44,7 +44,7 @@ namespace Confluent.SchemaRegistry.Serdes
         private Dictionary<string, int> schemaIds = new Dictionary<string, int>();
 
         private SemaphoreSlim serializeMutex = new SemaphoreSlim(1);
-        private IDictionary<string, IRuleExecutor> ruleExecutors = new Dictionary<string, IRuleExecutor>();
+        private IDictionary<string, IRuleExecutor> ruleExecutors;
 
         public GenericSerializerImpl(
             ISchemaRegistryClient schemaRegistryClient,
@@ -52,7 +52,8 @@ namespace Confluent.SchemaRegistry.Serdes
             bool normalizeSchemas,
             bool useLatestVersion,
             int initialBufferSize,
-            SubjectNameStrategyDelegate subjectNameStrategy)
+            SubjectNameStrategyDelegate subjectNameStrategy,
+            IDictionary<string, IRuleExecutor> ruleExecutors)
         {
             this.schemaRegistryClient = schemaRegistryClient;
             this.autoRegisterSchema = autoRegisterSchema;
@@ -60,6 +61,7 @@ namespace Confluent.SchemaRegistry.Serdes
             this.useLatestVersion = useLatestVersion;
             this.initialBufferSize = initialBufferSize;
             this.subjectNameStrategy = subjectNameStrategy;
+            this.ruleExecutors = ruleExecutors;
         }
 
         /// <summary>

@@ -6,15 +6,18 @@ namespace Confluent.SchemaRegistry.Encryption
 {
     public class LocalKmsClient : IKmsClient
     {
+        public static readonly string Prefix = "local-kms://";
+        
         public string Secret { get; }
-        private byte[] key;
         private Cryptor cryptor;
+        private byte[] key;
 
         public LocalKmsClient(string secret)
         {
             Secret = secret;
-            key = Hkdf.DeriveKey(HashAlgorithmName.SHA256, Encoding.UTF8.GetBytes(secret), 16);
-            cryptor = new Cryptor(DekFormat.AES128_GCM);
+            // TODO fix
+            cryptor = new Cryptor(DekFormat.AES256_SIV);
+            key = Hkdf.DeriveKey(HashAlgorithmName.SHA256, Encoding.UTF8.GetBytes(secret), cryptor.KeySize());
         }
         
         public byte[] Encrypt(byte[] plaintext)

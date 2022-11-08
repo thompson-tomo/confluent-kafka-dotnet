@@ -40,15 +40,20 @@ namespace Confluent.SchemaRegistry
             IList<Rule> rules;
             if (ruleMode == RuleMode.Upgrade)
             {
-                rules = target.RuleSet.MigrationRules;
+                rules = target.RuleSet?.MigrationRules;
             }
             else if (ruleMode == RuleMode.Downgrade)
             {
-                rules = source.RuleSet.MigrationRules;
+                rules = source.RuleSet?.MigrationRules;
             }
             else
             {
-                rules = target.RuleSet.DomainRules;
+                rules = target.RuleSet?.DomainRules;
+            }
+
+            if (rules == null)
+            {
+                return message;
             }
 
             foreach (Rule rule in rules)

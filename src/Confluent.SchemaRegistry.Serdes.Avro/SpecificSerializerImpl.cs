@@ -93,7 +93,7 @@ namespace Confluent.SchemaRegistry.Serdes
         private SerializerSchemaData singleSchemaData = null;
 
         private SemaphoreSlim serializeMutex = new SemaphoreSlim(1);
-        private IDictionary<string, IRuleExecutor> ruleExecutors = new Dictionary<string, IRuleExecutor>();
+        private IDictionary<string, IRuleExecutor> ruleExecutors;
 
         public SpecificSerializerImpl(
             ISchemaRegistryClient schemaRegistryClient,
@@ -101,7 +101,8 @@ namespace Confluent.SchemaRegistry.Serdes
             bool normalizeSchemas,
             bool useLatestVersion,
             int initialBufferSize,
-            SubjectNameStrategyDelegate subjectNameStrategy)
+            SubjectNameStrategyDelegate subjectNameStrategy,
+            IDictionary<string, IRuleExecutor> ruleExecutors)
         {
             this.schemaRegistryClient = schemaRegistryClient;
             this.autoRegisterSchema = autoRegisterSchema;
@@ -109,6 +110,7 @@ namespace Confluent.SchemaRegistry.Serdes
             this.useLatestVersion = useLatestVersion;
             this.initialBufferSize = initialBufferSize;
             this.subjectNameStrategy = subjectNameStrategy;
+            this.ruleExecutors = ruleExecutors;
 
             Type writerType = typeof(T);
             if (writerType != typeof(ISpecificRecord))
@@ -116,7 +118,7 @@ namespace Confluent.SchemaRegistry.Serdes
                 singleSchemaData = ExtractSchemaData(writerType);
             }
         }
-
+        
         private static SerializerSchemaData ExtractSchemaData(Type writerType)
         {
             SerializerSchemaData serializerSchemaData = new SerializerSchemaData();

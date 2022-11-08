@@ -22,7 +22,7 @@ namespace Confluent.SchemaRegistry
     
     public abstract class FieldRuleExecutor : IRuleExecutor
     {
-        internal FieldTransformer FieldTransformer { get; set; }
+        public FieldTransformer FieldTransformer { get; set; }
         
         public abstract string Type();
 

@@ -19,20 +19,25 @@ namespace Confluent.SchemaRegistry.Encryption
 
         public bool IsDeterministic { get; private set; }
 
-
-        public byte[] GenerateKey()
+        public int KeySize()
         {
             switch (DekFormat)
             {
                 case DekFormat.AES256_SIV:
                     // Generate 2 256-bit keys
-                    return Aead.GenerateKey512();
+                    return 64;
                 case DekFormat.AES128_GCM:
                     // Generate 128-bit key
-                    return Aead.GenerateNonce(16);
+                    return 16;
                 default:
                     throw new ArgumentException();
             }
+            
+        }
+
+        public byte[] GenerateKey()
+        {
+            return Aead.GenerateNonce(KeySize());
         }
 
         public byte[] Encrypt(byte[] key, byte[] plaintext)

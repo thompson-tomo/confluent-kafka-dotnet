@@ -48,9 +48,10 @@ namespace Confluent.SchemaRegistry.Serdes
 
         private ISchemaRegistryClient schemaRegistryClient;
 
-        public SpecificDeserializerImpl(ISchemaRegistryClient schemaRegistryClient)
+        public SpecificDeserializerImpl(ISchemaRegistryClient schemaRegistryClient, IDictionary<string, IRuleExecutor> ruleExecutors)
         {
             this.schemaRegistryClient = schemaRegistryClient;
+            this.ruleExecutors = ruleExecutors;
 
             if (typeof(ISpecificRecord).IsAssignableFrom(typeof(T)))
             {
@@ -145,20 +146,23 @@ namespace Confluent.SchemaRegistry.Serdes
                         deserializeMutex.Release();
                     }
 
+                    T data;
                     if (typeof(ISpecificRecord).IsAssignableFrom(typeof(T)))
                     {
                         // This is a generic deserializer and it knows the type that needs to be serialized into. 
                         // Passing default(T) will result in null value and that will force the datumRead to
                         // use the schema namespace and name provided in the schema, which may not match (T).
                         var reuse = Activator.CreateInstance<T>();
-                        return datumReader.Read(reuse, new BinaryDecoder(stream));
+                        data = datumReader.Read(reuse, new BinaryDecoder(stream));
                     }
-
-                    T data = datumReader.Read(default(T), new BinaryDecoder(stream));
+                    else
+                    {
+                        data = datumReader.Read(default(T), new BinaryDecoder(stream));
+                    }
                     
                     if (writerSchemaJson != null)
                     {
-                        SerdeUtils.ExecuteRules(ruleExecutors, isKey, null, topic, headers, RuleMode.Read, null,
+                        data = (T) SerdeUtils.ExecuteRules(ruleExecutors, isKey, null, topic, headers, RuleMode.Read, null,
                             writerSchemaJson, data);
                     }
 

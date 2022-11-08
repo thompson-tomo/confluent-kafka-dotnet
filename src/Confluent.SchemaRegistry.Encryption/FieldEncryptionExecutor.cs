@@ -18,7 +18,7 @@ namespace Confluent.SchemaRegistry.Encryption
         private static int LengthKekId = 4;
         private static int LengthDekFormat = 4;
 
-        private string kekId;
+        internal string kekId;
         private Cryptor keyCryptor;
         private Cryptor valueCryptor;
         private int cacheExpirySecs = 300;
@@ -39,6 +39,9 @@ namespace Confluent.SchemaRegistry.Encryption
             {
                 SizeLimit = cacheSize
             });
+            keyCryptor = new Cryptor(DekFormat.AES256_SIV);
+            // TODO fix
+            valueCryptor = new Cryptor(DekFormat.AES256_SIV);
         }
 
         public override string Type() => "ENCRYPT";
@@ -67,15 +70,14 @@ namespace Confluent.SchemaRegistry.Encryption
                     ciphertext = cryptor.Encrypt(dek.RawDek, plaintext);
                     metadata = BuildMetadata(cryptor.DekFormat.ToString(), dek.EncryptedDek);
                     string headerName = GetHeaderName(ctx);
-                    if (ctx.Headers.GetLastBytes(headerName) == null)
+                    if (!ctx.Headers.TryGetLastBytes(headerName, out _))
                     {
                         ctx.Headers.Add(headerName, metadata);
                     }
 
                     return Convert.ToBase64String(ciphertext);
                 case RuleMode.Read:
-                    metadata = ctx.Headers.GetLastBytes(GetHeaderName(ctx));
-                    if (metadata == null)
+                    if (!ctx.Headers.TryGetLastBytes(GetHeaderName(ctx), out metadata))
                     {
                         return obj;
                     }
@@ -166,7 +168,7 @@ namespace Confluent.SchemaRegistry.Encryption
         {
             string key = cryptor.DekFormat.ToString();
             // Cache on rule context to ensure dek lives during life of entire transformation
-            return (Dek)ComputeIfAbsent(ctx.CustomData, key, () =>
+            return ComputeIfAbsent(ctx.CustomData, key, () =>
             {
                 if (!dekEncryptCache.TryGetValue(key, out Dek dek))
                 {
@@ -174,7 +176,8 @@ namespace Confluent.SchemaRegistry.Encryption
                     IKmsClient kmsClient = KmsClients.Get(kekId);
                     byte[] encryptedDek = kmsClient.Encrypt(rawDek);
                     dek = new Dek(rawDek, encryptedDek);
-                    dekEncryptCache.Set(key, dek);
+                    var options = new MemoryCacheEntryOptions().SetSize(1);
+                    dekEncryptCache.Set(key, dek, options);
                 }
 
                 return dek;
@@ -185,30 +188,30 @@ namespace Confluent.SchemaRegistry.Encryption
         {
             ByteArrayKey key = new ByteArrayKey(encryptedDek);
             // Cache on rule context to ensure dek lives during life of entire transformation
-            return (Dek)ComputeIfAbsent(ctx.CustomData, key, () =>
+            return ComputeIfAbsent(ctx.CustomData, key, () =>
             {
                 if (!dekDecryptCache.TryGetValue(key, out Dek dek))
                 {
                     IKmsClient kmsClient = KmsClients.Get(kekId);
                     byte[] rawDek = kmsClient.Decrypt(encryptedDek);
                     dek = new Dek(rawDek, encryptedDek);
-                    dekDecryptCache.Set(key, dek);
+                    var options = new MemoryCacheEntryOptions().SetSize(1);
+                    dekDecryptCache.Set(key, dek, options);
                 }
 
                 return dek;
             });
         }
 
-        public TValue ComputeIfAbsent<TKey, TValue>(IDictionary<TKey, TValue> dict, TKey key, Func<TValue> func)
-            where TValue : new()
+        public TValue ComputeIfAbsent<TKey, TValue>(IDictionary<object, object> dict, TKey key, Func<TValue> func)
         {
-            if (!dict.TryGetValue(key, out TValue val))
+            if (!dict.TryGetValue(key, out var val))
             {
-                val = new TValue();
+                val = func.Invoke();
                 dict.Add(key, val);
             }
 
-            return val;
+            return (TValue) val;
         }
 
         private Cryptor GetCryptor(RuleContext ctx)

@@ -41,9 +41,10 @@ namespace Confluent.SchemaRegistry.Serdes
 
         private ISchemaRegistryClient schemaRegistryClient;
 
-        public GenericDeserializerImpl(ISchemaRegistryClient schemaRegistryClient)
+        public GenericDeserializerImpl(ISchemaRegistryClient schemaRegistryClient, IDictionary<string, IRuleExecutor> ruleExecutors)
         {
             this.schemaRegistryClient = schemaRegistryClient;
+            this.ruleExecutors = ruleExecutors;
         }
 
         public async Task<GenericRecord> Deserialize(string topic, Headers headers, byte[] array, bool isKey)
@@ -105,7 +106,7 @@ namespace Confluent.SchemaRegistry.Serdes
 
                     if (writerSchemaResult != null)
                     {
-                        SerdeUtils.ExecuteRules(ruleExecutors, isKey, null, topic, headers, RuleMode.Read, null,
+                        data = (GenericRecord) SerdeUtils.ExecuteRules(ruleExecutors, isKey, null, topic, headers, RuleMode.Read, null,
                             writerSchemaResult, data);
                     }
 

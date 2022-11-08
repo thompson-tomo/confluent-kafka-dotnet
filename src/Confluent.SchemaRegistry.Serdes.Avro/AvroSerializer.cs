@@ -46,6 +46,7 @@ namespace Confluent.SchemaRegistry.Serdes
         private IAvroSerializerImpl<T> serializerImpl;
 
         private ISchemaRegistryClient schemaRegistryClient;
+        private IDictionary<string, IRuleExecutor> ruleExecutors = new Dictionary<string, IRuleExecutor>();
 
         /// <summary>
         ///     The default initial size (in bytes) of buffers used for message 
@@ -122,6 +123,19 @@ namespace Confluent.SchemaRegistry.Serdes
             }
         }
 
+        // TODO remove
+        public void AddRuleExecutor(IRuleExecutor executor)
+        {
+            if (executor is FieldRuleExecutor)
+            {
+                ((FieldRuleExecutor)executor).FieldTransformer = (ctx, transform, message) =>
+                {
+                    var schema = Avro.Schema.Parse(ctx.Target.SchemaString);
+                    return AvroUtils.Transform(ctx, schema, message, transform);
+                };
+            }
+            ruleExecutors[executor.Type()] = executor;
+        }
 
         /// <summary>
         ///     Serialize an instance of type <typeparamref name="T"/> to a byte array in Avro format. The serialized
@@ -156,8 +170,8 @@ namespace Confluent.SchemaRegistry.Serdes
                 if (serializerImpl == null)
                 {
                     serializerImpl = typeof(T) == typeof(GenericRecord)
-                        ? (IAvroSerializerImpl<T>)new GenericSerializerImpl(schemaRegistryClient, autoRegisterSchema, normalizeSchemas, useLatestVersion, initialBufferSize, subjectNameStrategy)
-                        : new SpecificSerializerImpl<T>(schemaRegistryClient, autoRegisterSchema, normalizeSchemas, useLatestVersion, initialBufferSize, subjectNameStrategy);
+                        ? (IAvroSerializerImpl<T>)new GenericSerializerImpl(schemaRegistryClient, autoRegisterSchema, normalizeSchemas, useLatestVersion, initialBufferSize, subjectNameStrategy, ruleExecutors)
+                        : new SpecificSerializerImpl<T>(schemaRegistryClient, autoRegisterSchema, normalizeSchemas, useLatestVersion, initialBufferSize, subjectNameStrategy, ruleExecutors);
                 }
 
                 return await serializerImpl.Serialize(context.Topic, context.Headers, value, context.Component == MessageComponentType.Key).ConfigureAwait(continueOnCapturedContext: false);

@@ -26,6 +26,7 @@ using Confluent.Kafka;
 using Confluent.Kafka.Examples.AvroSpecific;
 using System;
 using Avro.Generic;
+using Confluent.SchemaRegistry.Encryption;
 
 namespace Confluent.SchemaRegistry.Serdes.UnitTests
 {
@@ -34,6 +35,7 @@ namespace Confluent.SchemaRegistry.Serdes.UnitTests
         private ISchemaRegistryClient schemaRegistryClient;
         private string testTopic;
         private Dictionary<string, int> store = new Dictionary<string, int>();
+        private Dictionary<string, RegisteredSchema> subjectStore = new Dictionary<string, RegisteredSchema>();
 
         public SerializeDeserialzeTests()
         {
@@ -44,7 +46,21 @@ namespace Confluent.SchemaRegistry.Serdes.UnitTests
                 (string topic, string schema, bool normalize) => store.TryGetValue(schema, out int id) ? id : store[schema] = store.Count + 1
             );
             schemaRegistryMock.Setup(x => x.GetSchemaAsync(It.IsAny<int>(), It.IsAny<string>())).ReturnsAsync(
-                (int id, string format) => new Schema(store.Where(x => x.Value == id).First().Key, null, SchemaType.Avro)
+                (int id, string format) =>
+                {
+                    try
+                    {
+                        // First try subjectStore
+                        return subjectStore.Where(x => x.Value.Id == id).First().Value;
+                    }
+                    catch (InvalidOperationException e)
+                    {
+                        // Next try store
+                        return new Schema(store.Where(x => x.Value == id).First().Key, null, SchemaType.Avro);
+                    }
+                });
+            schemaRegistryMock.Setup(x => x.GetLatestSchemaAsync(It.IsAny<string>())).ReturnsAsync(
+                (string subject) => subjectStore[subject]
             );
             schemaRegistryClient = schemaRegistryMock.Object;
         }
@@ -146,6 +162,55 @@ namespace Confluent.SchemaRegistry.Serdes.UnitTests
             var result = deserializer.DeserializeAsync(bytes, false, new SerializationContext(MessageComponentType.Value, testTopic)).Result;
 
             Assert.Equal(user.name, result.name);
+            Assert.Equal(user.favorite_color, result.favorite_color);
+            Assert.Equal(user.favorite_number, result.favorite_number);
+        }
+
+        [Fact]
+        public void ISpecificRecordEncryption()
+        {
+            var schemaStr = User._SCHEMA.ToString();
+            var schema = new RegisteredSchema("topic-value", 1, 1, schemaStr, SchemaType.Avro, null);
+            schema.Metadata = new Metadata(new Dictionary<string, ISet<string>>
+                {
+                    ["Confluent.Kafka.Examples.AvroSpecific.User.name"] = new HashSet<string> { "PII" }
+
+                }, new Dictionary<string, string>(), new HashSet<string>()
+            );
+            schema.RuleSet = new RuleSet(new List<Rule>(),
+                new List<Rule> 
+                {
+                    new Rule("encryptPII", RuleKind.Transform, RuleMode.ReadWrite, "ENCRYPT", new HashSet<string>
+                    {
+                        "PII"
+                    })
+                });
+            store[schemaStr] = 1;
+            subjectStore["topic-value"] = schema; 
+            var config = new AvroSerializerConfig
+            {
+                AutoRegisterSchemas = false,
+                UseLatestVersion = true
+            };
+            var serializer = new AvroSerializer<User>(schemaRegistryClient, config);
+            LocalFieldEncryptionExecutor executor = new LocalFieldEncryptionExecutor("mysecret");
+            serializer.AddRuleExecutor(executor);
+            var deserializer = new AvroDeserializer<User>(schemaRegistryClient);
+            deserializer.AddRuleExecutor(executor);
+
+            var user = new User
+            {
+                favorite_color = "blue",
+                favorite_number = 100,
+                name = "awesome"
+            };
+
+            Headers headers = new Headers();
+            var bytes = serializer.SerializeAsync(user, new SerializationContext(MessageComponentType.Value, testTopic, headers)).Result;
+            var result = deserializer.DeserializeAsync(bytes, false, new SerializationContext(MessageComponentType.Value, testTopic, headers)).Result;
+
+            // The user name has been modified
+            Assert.Equal("awesome", result.name);
             Assert.Equal(user.favorite_color, result.favorite_color);
             Assert.Equal(user.favorite_number, result.favorite_number);
         }
