@@ -53,10 +53,18 @@ namespace Confluent.SchemaRegistry.Serdes
         ///     Deserializer configuration properties (refer to 
         ///     <see cref="AvroDeserializerConfig" />).
         /// </param>
-        public AvroDeserializer(ISchemaRegistryClient schemaRegistryClient, IEnumerable<KeyValuePair<string, string>> config = null)
+        public AvroDeserializer(ISchemaRegistryClient schemaRegistryClient, IEnumerable<KeyValuePair<string, string>> config = null, IList<IRuleExecutor> ruleExecutors = null)
         {
             this.schemaRegistryClient = schemaRegistryClient;
-
+            
+            if (ruleExecutors != null)
+            {
+                foreach (IRuleExecutor executor in ruleExecutors)
+                {
+                    AddRuleExecutor(executor);
+                }
+            }
+            
             if (config == null) { return; }
 
             var nonAvroConfig = config.Where(item => !item.Key.StartsWith("avro."));
@@ -72,8 +80,7 @@ namespace Confluent.SchemaRegistry.Serdes
             }
         }
 
-        // TODO remove
-        public void AddRuleExecutor(IRuleExecutor executor)
+        private void AddRuleExecutor(IRuleExecutor executor)
         {
             if (executor is FieldRuleExecutor)
             {

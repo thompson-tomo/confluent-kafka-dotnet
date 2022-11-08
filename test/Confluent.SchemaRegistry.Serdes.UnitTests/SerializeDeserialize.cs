@@ -192,11 +192,9 @@ namespace Confluent.SchemaRegistry.Serdes.UnitTests
                 AutoRegisterSchemas = false,
                 UseLatestVersion = true
             };
-            var serializer = new AvroSerializer<User>(schemaRegistryClient, config);
             LocalFieldEncryptionExecutor executor = new LocalFieldEncryptionExecutor("mysecret");
-            serializer.AddRuleExecutor(executor);
-            var deserializer = new AvroDeserializer<User>(schemaRegistryClient);
-            deserializer.AddRuleExecutor(executor);
+            var serializer = new AvroSerializer<User>(schemaRegistryClient, config, new List<IRuleExecutor> { executor });
+            var deserializer = new AvroDeserializer<User>(schemaRegistryClient, null, new List<IRuleExecutor> { executor });
 
             var user = new User
             {
