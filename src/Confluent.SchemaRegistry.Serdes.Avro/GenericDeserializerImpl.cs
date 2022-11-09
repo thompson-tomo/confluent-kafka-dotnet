@@ -37,9 +37,9 @@ namespace Confluent.SchemaRegistry.Serdes
             = new Dictionary<int, DatumReader<GenericRecord>>();
        
         private SemaphoreSlim deserializeMutex = new SemaphoreSlim(1);
-        private IDictionary<string, IRuleExecutor> ruleExecutors = new Dictionary<string, IRuleExecutor>();
 
         private ISchemaRegistryClient schemaRegistryClient;
+        private IDictionary<string, IRuleExecutor> ruleExecutors = new Dictionary<string, IRuleExecutor>();
 
         public GenericDeserializerImpl(ISchemaRegistryClient schemaRegistryClient, IDictionary<string, IRuleExecutor> ruleExecutors)
         {

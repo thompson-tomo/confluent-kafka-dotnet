@@ -85,7 +85,7 @@ namespace Confluent.SchemaRegistry
 
         public FieldContext CurrentField()
         {
-            return fieldContexts.Peek();
+            return fieldContexts.Count != 0 ? fieldContexts.Peek() : null;
         }
 
         public FieldContext EnterField(RuleContext ctx, object containingMessage,

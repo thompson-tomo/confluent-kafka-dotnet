@@ -39,7 +39,6 @@ namespace Confluent.SchemaRegistry.Serdes
             = new Dictionary<int, DatumReader<T>>();
 
         private SemaphoreSlim deserializeMutex = new SemaphoreSlim(1);
-        private IDictionary<string, IRuleExecutor> ruleExecutors = new Dictionary<string, IRuleExecutor>();
 
         /// <summary>
         ///     The Avro schema used to read values of type <typeparamref name="T"/>
@@ -47,6 +46,7 @@ namespace Confluent.SchemaRegistry.Serdes
         public global::Avro.Schema ReaderSchema { get; private set; }
 
         private ISchemaRegistryClient schemaRegistryClient;
+        private IDictionary<string, IRuleExecutor> ruleExecutors = new Dictionary<string, IRuleExecutor>();
 
         public SpecificDeserializerImpl(ISchemaRegistryClient schemaRegistryClient, IDictionary<string, IRuleExecutor> ruleExecutors)
         {

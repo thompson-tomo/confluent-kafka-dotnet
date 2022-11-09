@@ -167,7 +167,7 @@ namespace Confluent.SchemaRegistry.Serdes.UnitTests
         }
 
         [Fact]
-        public void ISpecificRecordEncryption()
+        public void ISpecificRecordFieldEncryption()
         {
             var schemaStr = User._SCHEMA.ToString();
             var schema = new RegisteredSchema("topic-value", 1, 1, schemaStr, SchemaType.Avro, null);

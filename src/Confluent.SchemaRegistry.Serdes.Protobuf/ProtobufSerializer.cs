@@ -283,10 +283,12 @@ namespace Confluent.SchemaRegistry.Serdes
 
                 string fullname = value.Descriptor.FullName;
 
+                string subject;
+                RegisteredSchema latestSchema = null;
                 await serializeMutex.WaitAsync().ConfigureAwait(continueOnCapturedContext: false);
                 try
                 {
-                    string subject = this.subjectNameStrategy != null
+                    subject = this.subjectNameStrategy != null
                         // use the subject name strategy specified in the serializer config if available.
                         ? this.subjectNameStrategy(context, fullname)
                         // else fall back to the deprecated config from (or default as currently supplied by) SchemaRegistry.
@@ -298,7 +300,7 @@ namespace Confluent.SchemaRegistry.Serdes
                     {
                         if (useLatestVersion)
                         {
-                            var latestSchema = await schemaRegistryClient.GetLatestSchemaAsync(subject)
+                            latestSchema = await schemaRegistryClient.GetLatestSchemaAsync(subject)
                                 .ConfigureAwait(continueOnCapturedContext: false);
                             schemaId = latestSchema.Id;
                         }
@@ -329,6 +331,12 @@ namespace Confluent.SchemaRegistry.Serdes
                 finally
                 {
                     serializeMutex.Release();
+                }
+
+                if (latestSchema != null)
+                {
+                    value = (T)SerdeUtils.ExecuteRules(ruleExecutors, context.Component == MessageComponentType.Key, subject, context.Topic, context.Headers, RuleMode.Write, null,
+                        latestSchema, value);
                 }
 
                 using (var stream = new MemoryStream(initialBufferSize))

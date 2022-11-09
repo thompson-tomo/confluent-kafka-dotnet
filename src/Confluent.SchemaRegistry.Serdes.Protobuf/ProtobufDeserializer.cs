@@ -20,6 +20,7 @@ using System.IO;
 using System.Linq;
 using System.Threading.Tasks;
 using System.Net;
+using System.Threading;
 using Confluent.Kafka;
 using Google.Protobuf;
 
@@ -47,6 +48,11 @@ namespace Confluent.SchemaRegistry.Serdes
     /// </remarks>
     public class ProtobufDeserializer<T> : IAsyncDeserializer<T> where T : class, IMessage<T>, new()
     {
+        private readonly Dictionary<int, Schema> schemaCache = new Dictionary<int, Schema>();
+        
+        private SemaphoreSlim deserializeMutex = new SemaphoreSlim(1);
+
+        private ISchemaRegistryClient schemaRegistryClient;
         private IDictionary<string, IRuleExecutor> ruleExecutors = new Dictionary<string, IRuleExecutor>();
         
         private bool useDeprecatedFormat = false;
@@ -60,8 +66,14 @@ namespace Confluent.SchemaRegistry.Serdes
         ///     Deserializer configuration properties (refer to 
         ///     <see cref="ProtobufDeserializerConfig" />).
         /// </param>
-        public ProtobufDeserializer(IEnumerable<KeyValuePair<string, string>> config = null, IList<IRuleExecutor> ruleExecutors = null)
+        public ProtobufDeserializer(IEnumerable<KeyValuePair<string, string>> config = null) : this(null, config)
         {
+        }
+        
+        public ProtobufDeserializer(ISchemaRegistryClient schemaRegistryClient, IEnumerable<KeyValuePair<string, string>> config = null, IList<IRuleExecutor> ruleExecutors = null)
+        {
+            this.schemaRegistryClient = schemaRegistryClient;
+
             this.parser = new MessageParser<T>(() => new T());
 
             if (ruleExecutors != null)
@@ -118,9 +130,9 @@ namespace Confluent.SchemaRegistry.Serdes
         ///     A <see cref="System.Threading.Tasks.Task" /> that completes
         ///     with the deserialized value.
         /// </returns>
-        public Task<T> DeserializeAsync(ReadOnlyMemory<byte> data, bool isNull, SerializationContext context)
+        public async Task<T> DeserializeAsync(ReadOnlyMemory<byte> data, bool isNull, SerializationContext context)
         {
-            if (isNull) { return Task.FromResult<T>(null); }
+            if (isNull) { return null; }
 
             var array = data.ToArray();
             if (array.Length < 6)
@@ -143,7 +155,7 @@ namespace Confluent.SchemaRegistry.Serdes
                     // serialized data includes tag and type information, which is enough for
                     // the IMessage<T> implementation to deserialize the data (even if the
                     // schema has evolved). _schemaId is thus unused.
-                    var _schemaId = IPAddress.NetworkToHostOrder(reader.ReadInt32());
+                    var writerId = IPAddress.NetworkToHostOrder(reader.ReadInt32());
 
                     // Read the index array length, then all of the indices. These are not
                     // needed, but parsing them is the easiest way to seek to the start of
@@ -161,8 +173,36 @@ namespace Confluent.SchemaRegistry.Serdes
                         }
                     }
 
+                    Schema writerSchema = null;
+                    await deserializeMutex.WaitAsync().ConfigureAwait(continueOnCapturedContext: false);
+                    try
+                    {
+                        schemaCache.TryGetValue(writerId, out writerSchema);
+                        if (writerSchema == null)
+                        {
+                            if (schemaCache.Count > schemaRegistryClient.MaxCachedSchemas)
+                            {
+                                schemaCache.Clear();
+                            }
+
+                            writerSchema = await schemaRegistryClient.GetSchemaAsync(writerId).ConfigureAwait(continueOnCapturedContext: false);
+                            schemaCache[writerId] = writerSchema;
+                        }
+                    }
+                    finally
+                    {
+                        deserializeMutex.Release();
+                    }
+
                     T message = parser.ParseFrom(stream);
-                    return Task.FromResult(message);
+                    
+                    if (writerSchema != null)
+                    {
+                        message = (T) SerdeUtils.ExecuteRules(ruleExecutors, context.Component == MessageComponentType.Key, null, context.Topic, context.Headers, RuleMode.Read, null,
+                            writerSchema, message);
+                    }
+                    
+                    return message;
                 }
             }
             catch (AggregateException e)

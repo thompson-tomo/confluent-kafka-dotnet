@@ -22,7 +22,7 @@ using System.IO;
 using System.Linq;
 using Google.Protobuf;
 using Google.Protobuf.Reflection;
-using Foox = ProtobufNet::ProtoBuf.Reflection;
+using ProtobufNet::ProtoBuf.Reflection;
 using IFileSystem = ProtobufNet::Google.Protobuf.Reflection.IFileSystem;
 using FileDescriptorSet = ProtobufNet::Google.Protobuf.Reflection.FileDescriptorSet;
 using FileDescriptorProto = ProtobufNet::Google.Protobuf.Reflection.FileDescriptorProto;
@@ -62,8 +62,13 @@ namespace Confluent.SchemaRegistry.Serdes
             else if (message is IMessage)
             {
                 IMessage copy = Copy((IMessage)message);
-                // TODO RULE use fullname
-                DescriptorProto messageType = FindMessageByName(desc, copy.Descriptor.Name);
+                string messageFullName = copy.Descriptor.FullName;
+                if (!messageFullName.StartsWith("."))
+                {
+                    messageFullName = "." + messageFullName;
+                }
+
+                DescriptorProto messageType = FindMessageByName(desc, messageFullName);
                 foreach (FieldDescriptor fd in copy.Descriptor.Fields.InDeclarationOrder())
                 {
                     FieldDescriptorProto schemaFd = FindFieldByName(messageType, fd.Name);
@@ -74,7 +79,7 @@ namespace Confluent.SchemaRegistry.Serdes
                         if (value is IMessage)
                         {
                             // Pass the schema-based descriptor which has the metadata
-                            d = null; // TODO RULES
+                            d = schemaFd.GetMessageType();
                         }
 
                         object newValue = Transform(ctx, d, value, fieldTransform);
@@ -101,7 +106,7 @@ namespace Confluent.SchemaRegistry.Serdes
             }
         }
 
-        private static DescriptorProto FindMessageByName(object desc, string messageName)
+        private static DescriptorProto FindMessageByName(object desc, string messageFullName)
         {
             if (desc is FileDescriptorSet)
             {
@@ -109,24 +114,24 @@ namespace Confluent.SchemaRegistry.Serdes
                 {
                     foreach (var messageType in file.MessageTypes)
                     {
-                        // TODO RULE use fullname
-                        if (messageType.Name.Equals(messageName))
-                        {
-                            return messageType;
-                        }
+                        return FindMessageByName(messageType, messageFullName);
                     }
                 }
-
-                return null;
             }
             else if (desc is DescriptorProto)
             {
-                return (DescriptorProto)desc;
+                DescriptorProto messageType = (DescriptorProto)desc;
+                if (messageType.GetFullyQualifiedName().Equals(messageFullName))
+                {
+                    return messageType;
+                }
+
+                foreach (DescriptorProto nestedType in messageType.NestedTypes)
+                {
+                    return FindMessageByName(nestedType, messageFullName);
+                }
             }
-            else
-            {
-                return null;
-            }
+            return null;
         }
 
         private static FieldDescriptorProto FindFieldByName(DescriptorProto desc, string fieldName)
@@ -144,7 +149,7 @@ namespace Confluent.SchemaRegistry.Serdes
 
         private static IMessage Copy(IMessage message)
         {
-            var builder = (IMessage)Activator.CreateInstance(typeof(IMessage));
+            var builder = (IMessage)Activator.CreateInstance(message.GetType());
             builder.MergeFrom(message.ToByteArray());
             return builder;
         }
@@ -207,6 +212,10 @@ namespace Confluent.SchemaRegistry.Serdes
 
         public static FileDescriptorSet Parse(string schema, IDictionary<string, string> imports)
         {
+            if (imports == null)
+            {
+                imports = new Dictionary<string, string>();
+            }
             var fds = new FileDescriptorSet();
             fds.FileSystem = new ProtobufImports(imports);
             

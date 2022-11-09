@@ -17,11 +17,14 @@
 // ConstructValueSubjectName is still used a an internal implementation detail.
 #pragma warning disable CS0618
 
+using System;
 using Moq;
 using Xunit;
 using System.Collections.Generic;
 using System.Linq;
 using Confluent.Kafka;
+using Confluent.SchemaRegistry.Encryption;
+using Example;
 
 
 namespace Confluent.SchemaRegistry.Serdes.UnitTests
@@ -31,6 +34,7 @@ namespace Confluent.SchemaRegistry.Serdes.UnitTests
         private ISchemaRegistryClient schemaRegistryClient;
         private string testTopic;
         private Dictionary<string, int> store = new Dictionary<string, int>();
+        private Dictionary<string, RegisteredSchema> subjectStore = new Dictionary<string, RegisteredSchema>();
 
         public ProtobufSerializeDeserialzeTests()
         {
@@ -41,7 +45,21 @@ namespace Confluent.SchemaRegistry.Serdes.UnitTests
                 (string topic, string schema, bool normalize) => store.TryGetValue(schema, out int id) ? id : store[schema] = store.Count + 1
             );
             schemaRegistryMock.Setup(x => x.GetSchemaAsync(It.IsAny<int>(), It.IsAny<string>())).ReturnsAsync(
-                (int id, string format) => new Schema(store.Where(x => x.Value == id).First().Key, null, SchemaType.Protobuf)
+                (int id, string format) =>
+                {
+                    try
+                    {
+                        // First try subjectStore
+                        return subjectStore.Where(x => x.Value.Id == id).First().Value;
+                    }
+                    catch (InvalidOperationException e)
+                    {
+                        // Next try store
+                        return new Schema(store.Where(x => x.Value == id).First().Key, null, SchemaType.Protobuf);
+                    }
+                });
+            schemaRegistryMock.Setup(x => x.GetLatestSchemaAsync(It.IsAny<string>())).ReturnsAsync(
+                (string subject) => subjectStore[subject]
             );
             schemaRegistryClient = schemaRegistryMock.Object;   
         }
@@ -49,7 +67,7 @@ namespace Confluent.SchemaRegistry.Serdes.UnitTests
         [Fact]
         public void ParseSchema()
         {
-            string schema = @"syntax = ""proto3\"";
+            string schema = @"syntax = ""proto3"";
             package io.confluent.kafka.serializers.protobuf.test;
 
             import ""ref.proto"";
@@ -104,6 +122,62 @@ namespace Confluent.SchemaRegistry.Serdes.UnitTests
             var v = new UInt32Value { Value = 1234 };
             var bytes = protoSerializer.SerializeAsync(v, new SerializationContext(MessageComponentType.Value, testTopic)).Result;
             Assert.Equal(v.Value, protoDeserializer.DeserializeAsync(bytes, false, new SerializationContext(MessageComponentType.Value, testTopic)).Result.Value);
+        }
+
+        [Fact]
+        public void FieldEncryption()
+        {
+            // TODO RULE test inline annotation
+            string schemaStr = @"syntax = ""proto3"";
+            package example;
+
+            message Person {
+                string favorite_color = 1;
+                int32 favorite_number = 2;
+                string name = 3;
+            }";
+            
+            var schema = new RegisteredSchema("topic-value", 1, 1, schemaStr, SchemaType.Protobuf, null);
+            schema.Metadata = new Metadata(new Dictionary<string, ISet<string>>
+                {
+                    ["example.Person.name"] = new HashSet<string> { "PII" }
+
+                }, new Dictionary<string, string>(), new HashSet<string>()
+            );
+            schema.RuleSet = new RuleSet(new List<Rule>(),
+                new List<Rule> 
+                {
+                    new Rule("encryptPII", RuleKind.Transform, RuleMode.ReadWrite, "ENCRYPT", new HashSet<string>
+                    {
+                        "PII"
+                    })
+                });
+            store[schemaStr] = 1;
+            subjectStore["topic-value"] = schema; 
+            var config = new ProtobufSerializerConfig
+            {
+                AutoRegisterSchemas = false,
+                UseLatestVersion = true
+            };
+            LocalFieldEncryptionExecutor executor = new LocalFieldEncryptionExecutor("mysecret");
+            var serializer = new ProtobufSerializer<Person>(schemaRegistryClient, config, new List<IRuleExecutor> { executor });
+            var deserializer = new ProtobufDeserializer<Person>(schemaRegistryClient, null, new List<IRuleExecutor> { executor });
+
+            var user = new Person
+            {
+                FavoriteColor = "blue",
+                FavoriteNumber = 100,
+                Name = "awesome"
+            };
+
+            Headers headers = new Headers();
+            var bytes = serializer.SerializeAsync(user, new SerializationContext(MessageComponentType.Value, testTopic, headers)).Result;
+            var result = deserializer.DeserializeAsync(bytes, false, new SerializationContext(MessageComponentType.Value, testTopic, headers)).Result;
+
+            // The user name has been modified
+            Assert.Equal("awesome", result.Name);
+            Assert.Equal(user.FavoriteColor, result.FavoriteColor);
+            Assert.Equal(user.FavoriteNumber, result.FavoriteNumber);
         }
 
     }
