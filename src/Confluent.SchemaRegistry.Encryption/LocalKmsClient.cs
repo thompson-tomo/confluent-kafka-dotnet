@@ -15,7 +15,7 @@ namespace Confluent.SchemaRegistry.Encryption
         public LocalKmsClient(string secret)
         {
             Secret = secret;
-            // TODO fix
+            // TODO RULES fix
             cryptor = new Cryptor(DekFormat.AES256_SIV);
             key = Hkdf.DeriveKey(HashAlgorithmName.SHA256, Encoding.UTF8.GetBytes(secret), cryptor.KeySize());
         }

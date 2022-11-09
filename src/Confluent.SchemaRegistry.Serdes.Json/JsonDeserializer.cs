@@ -21,6 +21,7 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 using Confluent.Kafka;
+using NJsonSchema;
 using NJsonSchema.Generation;
 
 
@@ -51,6 +52,7 @@ namespace Confluent.SchemaRegistry.Serdes
         private readonly int headerSize =  sizeof(int) + sizeof(byte);
         
         private readonly JsonSchemaGeneratorSettings jsonSchemaGeneratorSettings;
+        private IDictionary<string, IRuleExecutor> ruleExecutors = new Dictionary<string, IRuleExecutor>();
 
         /// <summary>
         ///     Initialize a new JsonDeserializer instance.
@@ -62,10 +64,18 @@ namespace Confluent.SchemaRegistry.Serdes
         /// <param name="jsonSchemaGeneratorSettings">
         ///     JSON schema generator settings.
         /// </param>
-        public JsonDeserializer(IEnumerable<KeyValuePair<string, string>> config = null, JsonSchemaGeneratorSettings jsonSchemaGeneratorSettings = null)
+        public JsonDeserializer(IEnumerable<KeyValuePair<string, string>> config = null, JsonSchemaGeneratorSettings jsonSchemaGeneratorSettings = null, IList<IRuleExecutor> ruleExecutors = null)
         {
             this.jsonSchemaGeneratorSettings = jsonSchemaGeneratorSettings;
 
+            if (ruleExecutors != null)
+            {
+                foreach (IRuleExecutor executor in ruleExecutors)
+                {
+                    AddRuleExecutor(executor);
+                }
+            }
+            
             if (config == null) { return; }
 
             if (config.Count() > 0)
@@ -74,6 +84,20 @@ namespace Confluent.SchemaRegistry.Serdes
             }
         }
 
+        private void AddRuleExecutor(IRuleExecutor executor)
+        {
+            if (executor is FieldRuleExecutor)
+            {
+                ((FieldRuleExecutor)executor).FieldTransformer = (ctx, transform, message) =>
+                {
+                    var task = JsonSchema.FromJsonAsync(ctx.Target.SchemaString).ConfigureAwait(false);
+                    var schema = task.GetAwaiter().GetResult();
+                    return JsonUtils.Transform(ctx, schema, "", message, transform);
+                };
+            }
+            ruleExecutors[executor.Type()] = executor;
+        }
+        
         /// <summary>
         ///     Deserialize an object of type <typeparamref name="T"/>
         ///     from a byte array.

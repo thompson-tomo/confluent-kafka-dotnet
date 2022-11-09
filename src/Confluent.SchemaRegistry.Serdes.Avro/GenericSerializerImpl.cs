@@ -189,7 +189,7 @@ namespace Confluent.SchemaRegistry.Serdes
 
                 if (latestSchema != null)
                 {
-                    SerdeUtils.ExecuteRules(ruleExecutors, isKey, subject, topic, headers, RuleMode.Write, null,
+                    data = (GenericRecord)SerdeUtils.ExecuteRules(ruleExecutors, isKey, subject, topic, headers, RuleMode.Write, null,
                         latestSchema, data);
                 }
 

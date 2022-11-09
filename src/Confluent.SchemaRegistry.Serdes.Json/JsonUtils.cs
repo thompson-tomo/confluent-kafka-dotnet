@@ -140,7 +140,7 @@ namespace Confluent.SchemaRegistry.Serdes
         private static ISet<string> GetInlineAnnotations(JsonSchema schema)
         {
             ISet<string> annotations = new HashSet<string>();
-            // TODO
+            // TODO RULES
             /*
             if (fd.getOptions().hasExtension(MetaProto.fieldMeta))
             {

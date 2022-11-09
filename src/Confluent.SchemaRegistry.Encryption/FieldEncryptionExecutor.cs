@@ -40,7 +40,7 @@ namespace Confluent.SchemaRegistry.Encryption
                 SizeLimit = cacheSize
             });
             keyCryptor = new Cryptor(DekFormat.AES256_SIV);
-            // TODO fix
+            // TODO RULES fix
             valueCryptor = new Cryptor(DekFormat.AES256_SIV);
         }
 

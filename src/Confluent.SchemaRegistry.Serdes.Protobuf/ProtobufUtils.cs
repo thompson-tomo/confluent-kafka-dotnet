@@ -22,6 +22,7 @@ using System.IO;
 using System.Linq;
 using Google.Protobuf;
 using Google.Protobuf.Reflection;
+using Foox = ProtobufNet::ProtoBuf.Reflection;
 using IFileSystem = ProtobufNet::Google.Protobuf.Reflection.IFileSystem;
 using FileDescriptorSet = ProtobufNet::Google.Protobuf.Reflection.FileDescriptorSet;
 using FileDescriptorProto = ProtobufNet::Google.Protobuf.Reflection.FileDescriptorProto;
@@ -36,7 +37,7 @@ namespace Confluent.SchemaRegistry.Serdes
     /// </summary>
     public static class ProtobufUtils
     {
-        public static object Transform(RuleContext ctx, DescriptorProto desc, object message,
+        public static object Transform(RuleContext ctx, object desc, object message,
             FieldTransform fieldTransform)
         {
             if (desc == null || message == null)
@@ -44,6 +45,7 @@ namespace Confluent.SchemaRegistry.Serdes
                 return message;
             }
 
+            
             if (message.GetType().IsGenericType &&
                 (message.GetType().GetGenericTypeDefinition().IsAssignableFrom(typeof(List<>)) ||
                  message.GetType().GetGenericTypeDefinition().IsAssignableFrom(typeof(IList<>))))
@@ -60,17 +62,19 @@ namespace Confluent.SchemaRegistry.Serdes
             else if (message is IMessage)
             {
                 IMessage copy = Copy((IMessage)message);
+                // TODO RULE use fullname
+                DescriptorProto messageType = FindMessageByName(desc, copy.Descriptor.Name);
                 foreach (FieldDescriptor fd in copy.Descriptor.Fields.InDeclarationOrder())
                 {
-                    FieldDescriptorProto schemaFd = FindFieldByName(desc, fd.Name);
+                    FieldDescriptorProto schemaFd = FindFieldByName(messageType, fd.Name);
                     using (ctx.EnterField(ctx, copy, fd.FullName, fd.Name, GetType(fd), GetInlineAnnotations(fd)))
                     {
                         object value = fd.Accessor.GetValue(copy);
-                        DescriptorProto d = desc;
+                        DescriptorProto d = messageType;
                         if (value is IMessage)
                         {
                             // Pass the schema-based descriptor which has the metadata
-                            d = null; // TODO
+                            d = null; // TODO RULES
                         }
 
                         object newValue = Transform(ctx, d, value, fieldTransform);
@@ -94,6 +98,34 @@ namespace Confluent.SchemaRegistry.Serdes
                 }
 
                 return message;
+            }
+        }
+
+        private static DescriptorProto FindMessageByName(object desc, string messageName)
+        {
+            if (desc is FileDescriptorSet)
+            {
+                foreach (var file in ((FileDescriptorSet)desc).Files)
+                {
+                    foreach (var messageType in file.MessageTypes)
+                    {
+                        // TODO RULE use fullname
+                        if (messageType.Name.Equals(messageName))
+                        {
+                            return messageType;
+                        }
+                    }
+                }
+
+                return null;
+            }
+            else if (desc is DescriptorProto)
+            {
+                return (DescriptorProto)desc;
+            }
+            else
+            {
+                return null;
             }
         }
 
@@ -162,7 +194,7 @@ namespace Confluent.SchemaRegistry.Serdes
         private static ISet<string> GetInlineAnnotations(FieldDescriptor fd)
         {
             ISet<string> annotations = new HashSet<string>();
-            // TODO
+            // TODO RULES
             /*
             if (fd.getOptions().hasExtension(MetaProto.fieldMeta))
             {

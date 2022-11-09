@@ -47,6 +47,8 @@ namespace Confluent.SchemaRegistry.Serdes
     /// </remarks>
     public class ProtobufDeserializer<T> : IAsyncDeserializer<T> where T : class, IMessage<T>, new()
     {
+        private IDictionary<string, IRuleExecutor> ruleExecutors = new Dictionary<string, IRuleExecutor>();
+        
         private bool useDeprecatedFormat = false;
         
         private MessageParser<T> parser;
@@ -58,10 +60,18 @@ namespace Confluent.SchemaRegistry.Serdes
         ///     Deserializer configuration properties (refer to 
         ///     <see cref="ProtobufDeserializerConfig" />).
         /// </param>
-        public ProtobufDeserializer(IEnumerable<KeyValuePair<string, string>> config = null)
+        public ProtobufDeserializer(IEnumerable<KeyValuePair<string, string>> config = null, IList<IRuleExecutor> ruleExecutors = null)
         {
             this.parser = new MessageParser<T>(() => new T());
 
+            if (ruleExecutors != null)
+            {
+                foreach (IRuleExecutor executor in ruleExecutors)
+                {
+                    AddRuleExecutor(executor);
+                }
+            }
+            
             if (config == null) { return; }
 
             var nonProtobufConfig = config.Where(item => !item.Key.StartsWith("protobuf."));
@@ -75,6 +85,20 @@ namespace Confluent.SchemaRegistry.Serdes
             {
                 this.useDeprecatedFormat = protobufConfig.UseDeprecatedFormat.Value;
             }
+        }
+
+        private void AddRuleExecutor(IRuleExecutor executor)
+        {
+            if (executor is FieldRuleExecutor)
+            {
+                ((FieldRuleExecutor)executor).FieldTransformer = (ctx, transform, message) =>
+                {
+                    // TODO RULES pass imports
+                    var fdSet = ProtobufUtils.Parse(ctx.Target.SchemaString, null);
+                    return ProtobufUtils.Transform(ctx, fdSet, message, transform);
+                };
+            }
+            ruleExecutors[executor.Type()] = executor;
         }
 
         /// <summary>

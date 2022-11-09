@@ -64,6 +64,7 @@ namespace Confluent.SchemaRegistry.Serdes
         private SubjectNameStrategyDelegate subjectNameStrategy = null;
         private ISchemaRegistryClient schemaRegistryClient;
         private readonly JsonSchemaGeneratorSettings jsonSchemaGeneratorSettings;
+        private IDictionary<string, IRuleExecutor> ruleExecutors = new Dictionary<string, IRuleExecutor>();
         
         private HashSet<string> subjectsRegistered = new HashSet<string>();
         private SemaphoreSlim serializeMutex = new SemaphoreSlim(1);
@@ -93,7 +94,7 @@ namespace Confluent.SchemaRegistry.Serdes
         /// <param name="jsonSchemaGeneratorSettings">
         ///     JSON schema generator settings.
         /// </param>
-        public JsonSerializer(ISchemaRegistryClient schemaRegistryClient, JsonSerializerConfig config = null, JsonSchemaGeneratorSettings jsonSchemaGeneratorSettings = null)
+        public JsonSerializer(ISchemaRegistryClient schemaRegistryClient, JsonSerializerConfig config = null, JsonSchemaGeneratorSettings jsonSchemaGeneratorSettings = null, IList<IRuleExecutor> ruleExecutors = null)
         {
             this.schemaRegistryClient = schemaRegistryClient;
             this.jsonSchemaGeneratorSettings = jsonSchemaGeneratorSettings;
@@ -104,6 +105,14 @@ namespace Confluent.SchemaRegistry.Serdes
             this.schemaFullname = schema.Title;
             this.schemaText = schema.ToJson();
 
+            if (ruleExecutors != null)
+            {
+                foreach (IRuleExecutor executor in ruleExecutors)
+                {
+                    AddRuleExecutor(executor);
+                }
+            }
+            
             if (config == null) { return; }
 
             var nonJsonConfig = config.Where(item => !item.Key.StartsWith("json."));
@@ -124,6 +133,19 @@ namespace Confluent.SchemaRegistry.Serdes
             }
         }
 
+        private void AddRuleExecutor(IRuleExecutor executor)
+        {
+            if (executor is FieldRuleExecutor)
+            {
+                ((FieldRuleExecutor)executor).FieldTransformer = (ctx, transform, message) =>
+                {
+                    var task = JsonSchema.FromJsonAsync(ctx.Target.SchemaString).ConfigureAwait(false);
+                    var schema = task.GetAwaiter().GetResult();
+                    return JsonUtils.Transform(ctx, schema, "", message, transform);
+                };
+            }
+            ruleExecutors[executor.Type()] = executor;
+        }
 
         /// <summary>
         ///     Serialize an instance of type <typeparamref name="T"/> to a UTF8 encoded JSON 
@@ -149,19 +171,14 @@ namespace Confluent.SchemaRegistry.Serdes
         {
             if (value == null) { return null; }
 
-            var serializedString = Newtonsoft.Json.JsonConvert.SerializeObject(value, this.jsonSchemaGeneratorSettings?.ActualSerializerSettings);
-            var validationResult = validator.Validate(serializedString, this.schema);
-            if (validationResult.Count > 0)
-            {
-                throw new InvalidDataException("Schema validation failed for properties: [" + string.Join(", ", validationResult.Select(r => r.Path)) + "]");
-            }
-
             try
             {
+                string subject;
+                RegisteredSchema latestSchema = null;
                 await serializeMutex.WaitAsync().ConfigureAwait(continueOnCapturedContext: false);
                 try
                 {
-                    string subject = this.subjectNameStrategy != null
+                    subject = this.subjectNameStrategy != null
                         // use the subject name strategy specified in the serializer config if available.
                         ? this.subjectNameStrategy(context, this.schemaFullname)
                         // else fall back to the deprecated config from (or default as currently supplied by) SchemaRegistry.
@@ -173,7 +190,7 @@ namespace Confluent.SchemaRegistry.Serdes
                     {
                         if (useLatestVersion)
                         {
-                            var latestSchema = await schemaRegistryClient.GetLatestSchemaAsync(subject)
+                            latestSchema = await schemaRegistryClient.GetLatestSchemaAsync(subject)
                                 .ConfigureAwait(continueOnCapturedContext: false);
                             schemaId = latestSchema.Id;
                         }
@@ -199,6 +216,19 @@ namespace Confluent.SchemaRegistry.Serdes
                     serializeMutex.Release();
                 }
                 
+                if (latestSchema != null)
+                {
+                    value = (T)SerdeUtils.ExecuteRules(ruleExecutors, context.Component == MessageComponentType.Key, subject, context.Topic, context.Headers, RuleMode.Write, null,
+                        latestSchema, value);
+                }
+
+                var serializedString = Newtonsoft.Json.JsonConvert.SerializeObject(value, this.jsonSchemaGeneratorSettings?.ActualSerializerSettings);
+                var validationResult = validator.Validate(serializedString, this.schema);
+                if (validationResult.Count > 0)
+                {
+                    throw new InvalidDataException("Schema validation failed for properties: [" + string.Join(", ", validationResult.Select(r => r.Path)) + "]");
+                }
+
                 using (var stream = new MemoryStream(initialBufferSize))
                 using (var writer = new BinaryWriter(stream))
                 {

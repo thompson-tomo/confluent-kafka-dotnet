@@ -63,6 +63,7 @@ namespace Confluent.SchemaRegistry.Serdes
         private SubjectNameStrategyDelegate subjectNameStrategy = null;
         private ReferenceSubjectNameStrategyDelegate referenceSubjectNameStrategy = null;
         private ISchemaRegistryClient schemaRegistryClient;
+        private IDictionary<string, IRuleExecutor> ruleExecutors = new Dictionary<string, IRuleExecutor>();
         
         private HashSet<string> subjectsRegistered = new HashSet<string>();
         private SemaphoreSlim serializeMutex = new SemaphoreSlim(1);
@@ -79,10 +80,18 @@ namespace Confluent.SchemaRegistry.Serdes
         /// <summary>
         ///     Initialize a new instance of the ProtobufSerializer class.
         /// </summary>
-        public ProtobufSerializer(ISchemaRegistryClient schemaRegistryClient, ProtobufSerializerConfig config = null)
+        public ProtobufSerializer(ISchemaRegistryClient schemaRegistryClient, ProtobufSerializerConfig config = null, IList<IRuleExecutor> ruleExecutors = null)
         {
             this.schemaRegistryClient = schemaRegistryClient;
 
+            if (ruleExecutors != null)
+            {
+                foreach (IRuleExecutor executor in ruleExecutors)
+                {
+                    AddRuleExecutor(executor);
+                }
+            }
+            
             if (config == null)
             { 
                 this.referenceSubjectNameStrategy = ReferenceSubjectNameStrategy.ReferenceName.ToDelegate();
@@ -112,6 +121,19 @@ namespace Confluent.SchemaRegistry.Serdes
             }
         }
 
+        private void AddRuleExecutor(IRuleExecutor executor)
+        {
+            if (executor is FieldRuleExecutor)
+            {
+                ((FieldRuleExecutor)executor).FieldTransformer = (ctx, transform, message) =>
+                {
+                    // TODO RULES pass imports
+                    var fdSet = ProtobufUtils.Parse(ctx.Target.SchemaString, null);
+                    return ProtobufUtils.Transform(ctx, fdSet, message, transform);
+                };
+            }
+            ruleExecutors[executor.Type()] = executor;
+        }
 
         private static byte[] createIndexArray(MessageDescriptor md, bool useDeprecatedFormat)
         {
