@@ -18,7 +18,7 @@ namespace Confluent.SchemaRegistry.Encryption
 
         public static void Add(string id, IKmsClient kmsClient)
         {
-            clients.Add(id, kmsClient);
+            clients[id] = kmsClient;
         }
     }
 }

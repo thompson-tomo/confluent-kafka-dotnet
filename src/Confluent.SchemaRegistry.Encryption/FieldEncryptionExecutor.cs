@@ -12,6 +12,9 @@ namespace Confluent.SchemaRegistry.Encryption
     {
         public static readonly string HeaderNamePrefix = "encrypt";
 
+        private static readonly string EncryptMap = "encryptMap";
+        private static readonly string DecryptMap = "decryptMap";
+
         private static byte Version = 0;
         private static int LengthVersion = 1;
         private static int LengthEncryptedDek = 4;
@@ -168,7 +171,9 @@ namespace Confluent.SchemaRegistry.Encryption
         {
             string key = cryptor.DekFormat.ToString();
             // Cache on rule context to ensure dek lives during life of entire transformation
-            return ComputeIfAbsent(ctx.CustomData, key, () =>
+            IDictionary<string, Dek> dict = (IDictionary<string, Dek>) 
+                ComputeIfAbsent(ctx.CustomData, EncryptMap, () => new Dictionary<string, Dek>());
+            return ComputeIfAbsent(dict, key, () =>
             {
                 if (!dekEncryptCache.TryGetValue(key, out Dek dek))
                 {
@@ -188,7 +193,9 @@ namespace Confluent.SchemaRegistry.Encryption
         {
             ByteArrayKey key = new ByteArrayKey(encryptedDek);
             // Cache on rule context to ensure dek lives during life of entire transformation
-            return ComputeIfAbsent(ctx.CustomData, key, () =>
+            IDictionary<ByteArrayKey, Dek> dict = (IDictionary<ByteArrayKey, Dek>) 
+                ComputeIfAbsent(ctx.CustomData, DecryptMap, () => new Dictionary<ByteArrayKey, Dek>());
+            return ComputeIfAbsent(dict, key, () =>
             {
                 if (!dekDecryptCache.TryGetValue(key, out Dek dek))
                 {
@@ -203,7 +210,7 @@ namespace Confluent.SchemaRegistry.Encryption
             });
         }
 
-        public TValue ComputeIfAbsent<TKey, TValue>(IDictionary<object, object> dict, TKey key, Func<TValue> func)
+        public TValue ComputeIfAbsent<TKey, TValue>(IDictionary<TKey, TValue> dict, TKey key, Func<TValue> func)
         {
             if (!dict.TryGetValue(key, out var val))
             {
