@@ -18,7 +18,9 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using System.Net;
 using System.Text;
+using System.Threading;
 using System.Threading.Tasks;
 using Confluent.Kafka;
 using NJsonSchema;
@@ -51,8 +53,14 @@ namespace Confluent.SchemaRegistry.Serdes
     {
         private readonly int headerSize =  sizeof(int) + sizeof(byte);
         
-        private readonly JsonSchemaGeneratorSettings jsonSchemaGeneratorSettings;
+        private readonly Dictionary<int, Schema> schemaCache = new Dictionary<int, Schema>();
+        
+        private SemaphoreSlim deserializeMutex = new SemaphoreSlim(1);
+
+        private ISchemaRegistryClient schemaRegistryClient;
         private IDictionary<string, IRuleExecutor> ruleExecutors = new Dictionary<string, IRuleExecutor>();
+        
+        private readonly JsonSchemaGeneratorSettings jsonSchemaGeneratorSettings;
 
         /// <summary>
         ///     Initialize a new JsonDeserializer instance.
@@ -64,8 +72,14 @@ namespace Confluent.SchemaRegistry.Serdes
         /// <param name="jsonSchemaGeneratorSettings">
         ///     JSON schema generator settings.
         /// </param>
-        public JsonDeserializer(IEnumerable<KeyValuePair<string, string>> config = null, JsonSchemaGeneratorSettings jsonSchemaGeneratorSettings = null, IList<IRuleExecutor> ruleExecutors = null)
+        public JsonDeserializer(IEnumerable<KeyValuePair<string, string>> config = null, JsonSchemaGeneratorSettings jsonSchemaGeneratorSettings = null) :
+            this(null, config, jsonSchemaGeneratorSettings)
         {
+        }
+        
+        public JsonDeserializer(ISchemaRegistryClient schemaRegistryClient, IEnumerable<KeyValuePair<string, string>> config = null, JsonSchemaGeneratorSettings jsonSchemaGeneratorSettings = null, IList<IRuleExecutor> ruleExecutors = null)
+        {
+            this.schemaRegistryClient = schemaRegistryClient;
             this.jsonSchemaGeneratorSettings = jsonSchemaGeneratorSettings;
 
             if (ruleExecutors != null)
@@ -92,7 +106,7 @@ namespace Confluent.SchemaRegistry.Serdes
                 {
                     var task = JsonSchema.FromJsonAsync(ctx.Target.SchemaString).ConfigureAwait(false);
                     var schema = task.GetAwaiter().GetResult();
-                    return JsonUtils.Transform(ctx, schema, "", message, transform);
+                    return JsonUtils.Transform(ctx, schema, "$", message, transform);
                 };
             }
             ruleExecutors[executor.Type()] = executor;
@@ -115,31 +129,73 @@ namespace Confluent.SchemaRegistry.Serdes
         ///     A <see cref="System.Threading.Tasks.Task" /> that completes
         ///     with the deserialized value.
         /// </returns>
-        public Task<T> DeserializeAsync(ReadOnlyMemory<byte> data, bool isNull, SerializationContext context)
+        public async Task<T> DeserializeAsync(ReadOnlyMemory<byte> data, bool isNull, SerializationContext context)
         {
-            if (isNull) { return Task.FromResult<T>(null); }
+            if (isNull) { return null; }
 
+            var array = data.ToArray();
+            if (array.Length < 6)
+            {
+                throw new InvalidDataException($"Expecting data framing of length 6 bytes or more but total data size is {array.Length} bytes");
+            }
+            
             try
             {
-                var array = data.ToArray();
-
-                if (array.Length < 5)
+                using (var stream = new MemoryStream(array))
+                using (var reader = new BinaryReader(stream))
                 {
-                    throw new InvalidDataException($"Expecting data framing of length 5 bytes or more but total data size is {array.Length} bytes");
-                }
+                    var magicByte = reader.ReadByte();
+                    if (magicByte != Constants.MagicByte)
+                    {
+                        throw new InvalidDataException($"Expecting message {context.Component.ToString()} with Confluent Schema Registry framing. Magic byte was {array[0]}, expecting {Constants.MagicByte}");
+                    }
 
-                if (array[0] != Constants.MagicByte)
-                {
-                    throw new InvalidDataException($"Expecting message {context.Component.ToString()} with Confluent Schema Registry framing. Magic byte was {array[0]}, expecting {Constants.MagicByte}");
-                }
+                    // A schema is not required to deserialize protobuf messages since the
+                    // serialized data includes tag and type information, which is enough for
+                    // the IMessage<T> implementation to deserialize the data (even if the
+                    // schema has evolved). _schemaId is thus unused.
+                    var writerId = IPAddress.NetworkToHostOrder(reader.ReadInt32());
 
-                // A schema is not required to deserialize json messages.
-                // TODO: add validation capability.
+                    Schema writerSchema = null;
+                    if (schemaRegistryClient != null)
+                    {
+                        await deserializeMutex.WaitAsync().ConfigureAwait(continueOnCapturedContext: false);
+                        try
+                        {
+                            schemaCache.TryGetValue(writerId, out writerSchema);
+                            if (writerSchema == null)
+                            {
+                                if (schemaCache.Count > schemaRegistryClient.MaxCachedSchemas)
+                                {
+                                    schemaCache.Clear();
+                                }
 
-                using (var stream = new MemoryStream(array, headerSize, array.Length - headerSize))
-                using (var sr = new System.IO.StreamReader(stream, Encoding.UTF8))
-                {
-                    return Task.FromResult(Newtonsoft.Json.JsonConvert.DeserializeObject<T>(sr.ReadToEnd(), this.jsonSchemaGeneratorSettings?.ActualSerializerSettings));
+                                writerSchema = await schemaRegistryClient.GetSchemaAsync(writerId).ConfigureAwait(continueOnCapturedContext: false);
+                                schemaCache[writerId] = writerSchema;
+                            }
+                        }
+                        finally
+                        {
+                            deserializeMutex.Release();
+                        }
+                    }
+                    // A schema is not required to deserialize json messages.
+                    // TODO: add validation capability.
+
+                    T value;
+                    using (var jsonStream = new MemoryStream(array, headerSize, array.Length - headerSize))
+                    using (var jsonReader = new StreamReader(stream, Encoding.UTF8))
+                    {
+                        value = Newtonsoft.Json.JsonConvert.DeserializeObject<T>(jsonReader.ReadToEnd(), this.jsonSchemaGeneratorSettings?.ActualSerializerSettings);
+                    }
+                    
+                    if (writerSchema != null)
+                    {
+                        value = (T) SerdeUtils.ExecuteRules(ruleExecutors, context.Component == MessageComponentType.Key, null, context.Topic, context.Headers, RuleMode.Read, null,
+                            writerSchema, value);
+                    }
+                    
+                    return value;
                 }
             }
             catch (AggregateException e)

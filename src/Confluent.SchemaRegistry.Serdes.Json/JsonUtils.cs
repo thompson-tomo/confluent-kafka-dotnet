@@ -18,7 +18,9 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Reflection;
+using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
+using Newtonsoft.Json.Serialization;
 using NJsonSchema;
 using NJsonSchema.Validation;
 
@@ -164,17 +166,53 @@ namespace Confluent.SchemaRegistry.Serdes
                 {
                     GetValue = value => propertyInfo.GetValue(value);
                     SetValue = (instance, value) => propertyInfo.SetValue(instance, value);
+                    return;
                 }
-                else
+                
+                var fieldInfo = type.GetField(fieldName,
+                    BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance);
+                if (fieldInfo != null)
                 {
-                    var fieldInfo = type.GetField(fieldName,
-                        BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance);
-                    if (fieldInfo != null)
+                    GetValue = value => fieldInfo.GetValue(value);
+                    SetValue = (instance, value) => fieldInfo.SetValue(instance, value);
+                    return;
+                }
+                
+                foreach (PropertyInfo prop in type.GetProperties())
+                {
+                    if (prop.IsDefined(typeof(JsonPropertyAttribute)))
                     {
-                        GetValue = value => fieldInfo.GetValue(value);
-                        SetValue = (instance, value) => fieldInfo.SetValue(instance, value);
+                        var attrs = prop.GetCustomAttributes(typeof(JsonPropertyAttribute), true);
+                        foreach (JsonPropertyAttribute attr in attrs)
+                        {
+                            if (attr.PropertyName.Equals(fieldName))
+                            {
+                                GetValue = value => prop.GetValue(value);
+                                SetValue = (instance, value) => prop.SetValue(instance, value);
+                                return;
+                            }
+                        }
                     }
                 }
+                
+                foreach (FieldInfo field in type.GetFields())
+                {
+                    if (field.IsDefined(typeof(JsonPropertyAttribute)))
+                    {
+                        var attrs = field.GetCustomAttributes(typeof(JsonPropertyAttribute), true);
+                        foreach (JsonPropertyAttribute attr in attrs)
+                        {
+                            if (attr.PropertyName.Equals(fieldName))
+                            {
+                                GetValue = value => field.GetValue(value);
+                                SetValue = (instance, value) => field.SetValue(instance, value);
+                                return;
+                            }
+                        }
+                    }
+                }
+                
+                throw new ArgumentException("Could not find field " + fieldName);
             }
 
             public object GetFieldValue(object message)

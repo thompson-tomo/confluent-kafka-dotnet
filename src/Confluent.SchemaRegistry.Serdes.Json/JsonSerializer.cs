@@ -141,7 +141,7 @@ namespace Confluent.SchemaRegistry.Serdes
                 {
                     var task = JsonSchema.FromJsonAsync(ctx.Target.SchemaString).ConfigureAwait(false);
                     var schema = task.GetAwaiter().GetResult();
-                    return JsonUtils.Transform(ctx, schema, "", message, transform);
+                    return JsonUtils.Transform(ctx, schema, "$", message, transform);
                 };
             }
             ruleExecutors[executor.Type()] = executor;

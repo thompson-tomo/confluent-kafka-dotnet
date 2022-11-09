@@ -174,24 +174,27 @@ namespace Confluent.SchemaRegistry.Serdes
                     }
 
                     Schema writerSchema = null;
-                    await deserializeMutex.WaitAsync().ConfigureAwait(continueOnCapturedContext: false);
-                    try
+                    if (schemaRegistryClient != null)
                     {
-                        schemaCache.TryGetValue(writerId, out writerSchema);
-                        if (writerSchema == null)
+                        await deserializeMutex.WaitAsync().ConfigureAwait(continueOnCapturedContext: false);
+                        try
                         {
-                            if (schemaCache.Count > schemaRegistryClient.MaxCachedSchemas)
+                            schemaCache.TryGetValue(writerId, out writerSchema);
+                            if (writerSchema == null)
                             {
-                                schemaCache.Clear();
-                            }
+                                if (schemaCache.Count > schemaRegistryClient.MaxCachedSchemas)
+                                {
+                                    schemaCache.Clear();
+                                }
 
-                            writerSchema = await schemaRegistryClient.GetSchemaAsync(writerId).ConfigureAwait(continueOnCapturedContext: false);
-                            schemaCache[writerId] = writerSchema;
+                                writerSchema = await schemaRegistryClient.GetSchemaAsync(writerId).ConfigureAwait(continueOnCapturedContext: false);
+                                schemaCache[writerId] = writerSchema;
+                            }
                         }
-                    }
-                    finally
-                    {
-                        deserializeMutex.Release();
+                        finally
+                        {
+                            deserializeMutex.Release();
+                        }
                     }
 
                     T message = parser.ParseFrom(stream);

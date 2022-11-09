@@ -18,6 +18,7 @@
 #pragma warning disable CS0618
 
 using Confluent.Kafka;
+using Confluent.SchemaRegistry.Encryption;
 using Moq;
 using Newtonsoft.Json;
 using Newtonsoft.Json.Serialization;
@@ -98,6 +99,7 @@ namespace Confluent.SchemaRegistry.Serdes.UnitTests
         private ISchemaRegistryClient schemaRegistryClient;
         private string testTopic;
         private Dictionary<string, int> store = new Dictionary<string, int>();
+        private Dictionary<string, RegisteredSchema> subjectStore = new Dictionary<string, RegisteredSchema>();
 
         public JsonSerializeDeserialzeTests()
         {
@@ -108,7 +110,21 @@ namespace Confluent.SchemaRegistry.Serdes.UnitTests
                 (string topic, string schema, bool normalize) => store.TryGetValue(schema, out int id) ? id : store[schema] = store.Count + 1
             );
             schemaRegistryMock.Setup(x => x.GetSchemaAsync(It.IsAny<int>(), It.IsAny<string>())).ReturnsAsync(
-                (int id, string format) => new Schema(store.Where(x => x.Value == id).First().Key, null, SchemaType.Protobuf)
+                (int id, string format) =>
+                {
+                    try
+                    {
+                        // First try subjectStore
+                        return subjectStore.Where(x => x.Value.Id == id).First().Value;
+                    }
+                    catch (InvalidOperationException e)
+                    {
+                        // Next try store
+                        return new Schema(store.Where(x => x.Value == id).First().Key, null, SchemaType.Protobuf);
+                    }
+                });
+            schemaRegistryMock.Setup(x => x.GetLatestSchemaAsync(It.IsAny<string>())).ReturnsAsync(
+                (string subject) => subjectStore[subject]
             );
             schemaRegistryClient = schemaRegistryMock.Object;   
         }
@@ -239,5 +255,76 @@ namespace Confluent.SchemaRegistry.Serdes.UnitTests
                 Assert.True(false, $"Serialization threw exception of type {ex.GetType().FullName} instead of the expected {typeof(InvalidDataException).FullName}");
             }
         }
+        
+        [Fact]
+        public void FieldEncryption()
+        {
+            var schemaStr = @"{
+              ""type"": ""object"",
+              ""properties"": {
+                ""favorite_color"": {
+                  ""type"": ""string""
+                },
+                ""favorite_number"": {
+                  ""type"": ""number""
+                },
+                ""name"": {
+                  ""type"": ""string""
+                }
+              }
+            }";
+            
+            var schema = new RegisteredSchema("topic-value", 1, 1, schemaStr, SchemaType.Json, null);
+            schema.Metadata = new Metadata(new Dictionary<string, ISet<string>>
+                {
+                    ["$.name"] = new HashSet<string> { "PII" }
+
+                }, new Dictionary<string, string>(), new HashSet<string>()
+            );
+            schema.RuleSet = new RuleSet(new List<Rule>(),
+                new List<Rule> 
+                {
+                    new Rule("encryptPII", RuleKind.Transform, RuleMode.ReadWrite, "ENCRYPT", new HashSet<string>
+                    {
+                        "PII"
+                    })
+                });
+            store[schemaStr] = 1;
+            subjectStore["topic-value"] = schema; 
+            var config = new JsonSerializerConfig
+            {
+                AutoRegisterSchemas = false,
+                UseLatestVersion = true
+            };
+            LocalFieldEncryptionExecutor executor = new LocalFieldEncryptionExecutor("mysecret");
+            var serializer = new JsonSerializer<Customer>(schemaRegistryClient, config, null, new List<IRuleExecutor> { executor });
+            var deserializer = new JsonDeserializer<Customer>(schemaRegistryClient, null, null, new List<IRuleExecutor> { executor });
+
+            var user = new Customer
+            {
+                FavoriteColor = "blue",
+                FavoriteNumber = 100,
+                Name = "awesome"
+            };
+
+            Headers headers = new Headers();
+            var bytes = serializer.SerializeAsync(user, new SerializationContext(MessageComponentType.Value, testTopic, headers)).Result;
+            var result = deserializer.DeserializeAsync(bytes, false, new SerializationContext(MessageComponentType.Value, testTopic, headers)).Result;
+
+            // The user name has been modified
+            Assert.Equal("awesome", result.Name);
+            Assert.Equal(user.FavoriteColor, result.FavoriteColor);
+            Assert.Equal(user.FavoriteNumber, result.FavoriteNumber);
+        }
+    }
+
+    class Customer
+    {
+        [JsonProperty("favorite_color")]
+        public string FavoriteColor { get; set; }
+        [JsonProperty("favorite_number")]
+        public int FavoriteNumber { get; set; }
+        [JsonProperty("name")]
+        public string Name { get; set; }
     }
 }
