@@ -65,6 +65,8 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "ExactlyOnceOldBroker", "exa
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Confluent.SchemaRegistry.Encryption", "src\Confluent.SchemaRegistry.Encryption\Confluent.SchemaRegistry.Encryption.csproj", "{CFA3E05E-0130-4AEA-9ED5-B4A843FC5475}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Confluent.SchemaRegistry.Encryption.Aws", "src\Confluent.SchemaRegistry.Encryption.Aws\Confluent.SchemaRegistry.Encryption.Aws.csproj", "{1366863F-0971-439D-8794-6C0CCA255442}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -414,6 +416,18 @@ Global
 		{CFA3E05E-0130-4AEA-9ED5-B4A843FC5475}.Release|x64.Build.0 = Release|Any CPU
 		{CFA3E05E-0130-4AEA-9ED5-B4A843FC5475}.Release|x86.ActiveCfg = Release|Any CPU
 		{CFA3E05E-0130-4AEA-9ED5-B4A843FC5475}.Release|x86.Build.0 = Release|Any CPU
+		{1366863F-0971-439D-8794-6C0CCA255442}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{1366863F-0971-439D-8794-6C0CCA255442}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{1366863F-0971-439D-8794-6C0CCA255442}.Debug|x64.ActiveCfg = Debug|Any CPU
+		{1366863F-0971-439D-8794-6C0CCA255442}.Debug|x64.Build.0 = Debug|Any CPU
+		{1366863F-0971-439D-8794-6C0CCA255442}.Debug|x86.ActiveCfg = Debug|Any CPU
+		{1366863F-0971-439D-8794-6C0CCA255442}.Debug|x86.Build.0 = Debug|Any CPU
+		{1366863F-0971-439D-8794-6C0CCA255442}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{1366863F-0971-439D-8794-6C0CCA255442}.Release|Any CPU.Build.0 = Release|Any CPU
+		{1366863F-0971-439D-8794-6C0CCA255442}.Release|x64.ActiveCfg = Release|Any CPU
+		{1366863F-0971-439D-8794-6C0CCA255442}.Release|x64.Build.0 = Release|Any CPU
+		{1366863F-0971-439D-8794-6C0CCA255442}.Release|x86.ActiveCfg = Release|Any CPU
+		{1366863F-0971-439D-8794-6C0CCA255442}.Release|x86.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(NestedProjects) = preSolution
 		{09C3255B-1972-4EB8-91D0-FB9F5CD82BCB} = {1EFCD839-0726-4BCE-B745-1E829991B1BC}
@@ -444,5 +458,6 @@ Global
 		{98D7F3E1-80EE-437C-8915-528BFD80E9B2} = {1EFCD839-0726-4BCE-B745-1E829991B1BC}
 		{8F582FFF-EA30-47F1-89D2-81A37F5E7E0C} = {9CE4B5F7-9251-4340-BACB-207066A5DBE8}
 		{CFA3E05E-0130-4AEA-9ED5-B4A843FC5475} = {1EFCD839-0726-4BCE-B745-1E829991B1BC}
+		{1366863F-0971-439D-8794-6C0CCA255442} = {1EFCD839-0726-4BCE-B745-1E829991B1BC}
 	EndGlobalSection
 EndGlobal

@@ -1,6 +1,7 @@
 ﻿using HkdfStandard;
 using System.Security.Cryptography;
 using System.Text;
+using System.Threading.Tasks;
 
 namespace Confluent.SchemaRegistry.Encryption
 {
@@ -20,14 +21,14 @@ namespace Confluent.SchemaRegistry.Encryption
             key = Hkdf.DeriveKey(HashAlgorithmName.SHA256, Encoding.UTF8.GetBytes(secret), cryptor.KeySize());
         }
         
-        public byte[] Encrypt(byte[] plaintext)
+        public Task<byte[]> Encrypt(byte[] plaintext)
         {
-            return cryptor.Encrypt(key, plaintext);
+            return Task.FromResult(cryptor.Encrypt(key, plaintext));
         }
 
-        public byte[] Decrypt(byte[] ciphertext)
+        public Task<byte[]> Decrypt(byte[] ciphertext)
         {
-            return cryptor.Decrypt(key, ciphertext);
+            return Task.FromResult(cryptor.Decrypt(key, ciphertext));
         }
     }
 }

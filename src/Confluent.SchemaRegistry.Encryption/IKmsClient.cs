@@ -1,14 +1,11 @@
-﻿using System;
-using System.IO;
-using System.Security.Cryptography;
-using Miscreant;
+﻿using System.Threading.Tasks;
 
 namespace Confluent.SchemaRegistry.Encryption
 {
     public interface IKmsClient
     {
-        byte[] Encrypt(byte[] plaintext);
+        Task<byte[]> Encrypt(byte[] plaintext);
 
-        byte[] Decrypt(byte[] ciphertext);
+        Task<byte[]> Decrypt(byte[] ciphertext);
     }
 }

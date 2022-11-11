@@ -12,8 +12,8 @@ namespace Confluent.SchemaRegistry.Encryption
     {
         public LocalFieldEncryptionExecutor(String secret)
         {
-            KmsClients.Add(LocalKmsClient.Prefix, new LocalKmsClient(secret));
             kekId = LocalKmsClient.Prefix;
+            KmsClients.Add(kekId, new LocalKmsClient(secret));
         }
     }
 }

@@ -21,7 +21,7 @@ namespace Confluent.SchemaRegistry.Encryption
         private static int LengthKekId = 4;
         private static int LengthDekFormat = 4;
 
-        internal string kekId;
+        protected string kekId;
         private Cryptor keyCryptor;
         private Cryptor valueCryptor;
         private int cacheExpirySecs = 300;
@@ -179,7 +179,10 @@ namespace Confluent.SchemaRegistry.Encryption
                 {
                     byte[] rawDek = cryptor.GenerateKey();
                     IKmsClient kmsClient = KmsClients.Get(kekId);
-                    byte[] encryptedDek = kmsClient.Encrypt(rawDek);
+                    byte[] encryptedDek = kmsClient.Encrypt(rawDek)
+                        .ConfigureAwait(continueOnCapturedContext: false)
+                        .GetAwaiter()
+                        .GetResult();
                     dek = new Dek(rawDek, encryptedDek);
                     var options = new MemoryCacheEntryOptions().SetSize(1);
                     dekEncryptCache.Set(key, dek, options);
@@ -200,7 +203,10 @@ namespace Confluent.SchemaRegistry.Encryption
                 if (!dekDecryptCache.TryGetValue(key, out Dek dek))
                 {
                     IKmsClient kmsClient = KmsClients.Get(kekId);
-                    byte[] rawDek = kmsClient.Decrypt(encryptedDek);
+                    byte[] rawDek = kmsClient.Decrypt(encryptedDek)
+                        .ConfigureAwait(continueOnCapturedContext: false)
+                        .GetAwaiter()
+                        .GetResult();
                     dek = new Dek(rawDek, encryptedDek);
                     var options = new MemoryCacheEntryOptions().SetSize(1);
                     dekDecryptCache.Set(key, dek, options);
