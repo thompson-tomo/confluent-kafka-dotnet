@@ -1,5 +1,7 @@
-﻿using System.IO;
+﻿using System;
+using System.IO;
 using System.Threading.Tasks;
+using Amazon;
 using Amazon.KeyManagementService;
 using Amazon.KeyManagementService.Model;
 
@@ -10,17 +12,29 @@ namespace Confluent.SchemaRegistry.Encryption.Aws
         public static readonly string Prefix = "aws-kms://";
 
         private AmazonKeyManagementServiceClient kmsClient;
+        private string keyId;
         
-        public string KmsKeyId { get; set; }
+        public string KekId { get; set; }
         public string AccessKeyId { get; set; }
         public string SecretAccessKey { get; set; }
         
-        public AwsKmsClient(string kmsKeyId, string accessKeyId, string secretAccessKey)
+        public AwsKmsClient(string kekId, string accessKeyId, string secretAccessKey)
         {
-            KmsKeyId = kmsKeyId;
+            KekId = kekId;
             AccessKeyId = accessKeyId;
             SecretAccessKey = secretAccessKey;
-            kmsClient = new AmazonKeyManagementServiceClient(accessKeyId, secretAccessKey);
+            
+            if (!kekId.StartsWith(Prefix)) {
+              throw new ArgumentException("key URI must start with " + Prefix);
+            }
+            keyId = KekId.Substring(Prefix.Length);
+            string[] tokens = keyId.Split(':');
+            if (tokens.Length < 4) {
+                throw new ArgumentException("invalid key URI");
+            }
+            string regionName = tokens[3];
+            kmsClient = new AmazonKeyManagementServiceClient(accessKeyId, secretAccessKey, 
+                RegionEndpoint.GetBySystemName(regionName));
         }
         
         public async Task<byte[]> Encrypt(byte[] plaintext)
@@ -28,7 +42,7 @@ namespace Confluent.SchemaRegistry.Encryption.Aws
             using var dataStream = new MemoryStream(plaintext);
             var request = new EncryptRequest
             {
-                KeyId = KmsKeyId,
+                KeyId = keyId,
                 Plaintext = dataStream
             };
             var response = await kmsClient.EncryptAsync(request);
@@ -40,7 +54,7 @@ namespace Confluent.SchemaRegistry.Encryption.Aws
             using var dataStream = new MemoryStream(ciphertext);
             var request = new DecryptRequest
             {
-                KeyId = KmsKeyId,
+                KeyId = keyId,
                 CiphertextBlob = dataStream
             };
             var response = await kmsClient.DecryptAsync(request);
