@@ -29,6 +29,7 @@ using Avro.Generic;
 using Confluent.SchemaRegistry.Encryption;
 using Confluent.SchemaRegistry.Encryption.Aws;
 using Confluent.SchemaRegistry.Encryption.Azure;
+using Confluent.SchemaRegistry.Encryption.Gcp;
 
 namespace Confluent.SchemaRegistry.Serdes.UnitTests
 {

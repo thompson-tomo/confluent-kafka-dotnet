@@ -69,6 +69,8 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Confluent.SchemaRegistry.En
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Confluent.SchemaRegistry.Encryption.Azure", "src\Confluent.SchemaRegistry.Encryption.Azure\Confluent.SchemaRegistry.Encryption.Azure.csproj", "{86D302C8-C62D-42BA-AC32-CD071CBF1444}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Confluent.SchemaRegistry.Encryption.Gcp", "src\Confluent.SchemaRegistry.Encryption.Gcp\Confluent.SchemaRegistry.Encryption.Gcp.csproj", "{CD85842D-809B-49FE-8D0B-4D4D35B38C42}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -442,6 +444,18 @@ Global
 		{86D302C8-C62D-42BA-AC32-CD071CBF1444}.Release|x64.Build.0 = Release|Any CPU
 		{86D302C8-C62D-42BA-AC32-CD071CBF1444}.Release|x86.ActiveCfg = Release|Any CPU
 		{86D302C8-C62D-42BA-AC32-CD071CBF1444}.Release|x86.Build.0 = Release|Any CPU
+		{CD85842D-809B-49FE-8D0B-4D4D35B38C42}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{CD85842D-809B-49FE-8D0B-4D4D35B38C42}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{CD85842D-809B-49FE-8D0B-4D4D35B38C42}.Debug|x64.ActiveCfg = Debug|Any CPU
+		{CD85842D-809B-49FE-8D0B-4D4D35B38C42}.Debug|x64.Build.0 = Debug|Any CPU
+		{CD85842D-809B-49FE-8D0B-4D4D35B38C42}.Debug|x86.ActiveCfg = Debug|Any CPU
+		{CD85842D-809B-49FE-8D0B-4D4D35B38C42}.Debug|x86.Build.0 = Debug|Any CPU
+		{CD85842D-809B-49FE-8D0B-4D4D35B38C42}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{CD85842D-809B-49FE-8D0B-4D4D35B38C42}.Release|Any CPU.Build.0 = Release|Any CPU
+		{CD85842D-809B-49FE-8D0B-4D4D35B38C42}.Release|x64.ActiveCfg = Release|Any CPU
+		{CD85842D-809B-49FE-8D0B-4D4D35B38C42}.Release|x64.Build.0 = Release|Any CPU
+		{CD85842D-809B-49FE-8D0B-4D4D35B38C42}.Release|x86.ActiveCfg = Release|Any CPU
+		{CD85842D-809B-49FE-8D0B-4D4D35B38C42}.Release|x86.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(NestedProjects) = preSolution
 		{09C3255B-1972-4EB8-91D0-FB9F5CD82BCB} = {1EFCD839-0726-4BCE-B745-1E829991B1BC}
@@ -474,5 +488,6 @@ Global
 		{CFA3E05E-0130-4AEA-9ED5-B4A843FC5475} = {1EFCD839-0726-4BCE-B745-1E829991B1BC}
 		{1366863F-0971-439D-8794-6C0CCA255442} = {1EFCD839-0726-4BCE-B745-1E829991B1BC}
 		{86D302C8-C62D-42BA-AC32-CD071CBF1444} = {1EFCD839-0726-4BCE-B745-1E829991B1BC}
+		{CD85842D-809B-49FE-8D0B-4D4D35B38C42} = {1EFCD839-0726-4BCE-B745-1E829991B1BC}
 	EndGlobalSection
 EndGlobal
