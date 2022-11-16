@@ -27,6 +27,8 @@ using Confluent.Kafka.Examples.AvroSpecific;
 using System;
 using Avro.Generic;
 using Confluent.SchemaRegistry.Encryption;
+using Confluent.SchemaRegistry.Encryption.Aws;
+using Confluent.SchemaRegistry.Encryption.Azure;
 
 namespace Confluent.SchemaRegistry.Serdes.UnitTests
 {

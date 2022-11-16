@@ -14,9 +14,9 @@ namespace Confluent.SchemaRegistry.Encryption.Aws
         private AmazonKeyManagementServiceClient kmsClient;
         private string keyId;
         
-        public string KekId { get; set; }
-        public string AccessKeyId { get; set; }
-        public string SecretAccessKey { get; set; }
+        public string KekId { get; }
+        public string AccessKeyId { get; }
+        public string SecretAccessKey { get; }
         
         public AwsKmsClient(string kekId, string accessKeyId, string secretAccessKey)
         {
@@ -25,7 +25,7 @@ namespace Confluent.SchemaRegistry.Encryption.Aws
             SecretAccessKey = secretAccessKey;
             
             if (!kekId.StartsWith(Prefix)) {
-              throw new ArgumentException("key URI must start with " + Prefix);
+              throw new ArgumentException(string.Format($"key URI must start with {Prefix}"));
             }
             keyId = KekId.Substring(Prefix.Length);
             string[] tokens = keyId.Split(':');
