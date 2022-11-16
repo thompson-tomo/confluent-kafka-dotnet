@@ -64,20 +64,14 @@ namespace Confluent.SchemaRegistry
             Metadata metadata = Target.Metadata;
             if (metadata != null && metadata.Annotations != null)
             {
-                // TODO RULES wildcard matching
-                if (metadata.Annotations.TryGetValue(fullName, out var ann))
+                foreach (var entry in metadata.Annotations)
                 {
-                    annotations.UnionWith(ann);
+                    if (WildcardMatcher.Match(fullName, entry.Key))
+                    {
+                        annotations.UnionWith(entry.Value);
+                    } 
                 }
             }
-
-                /*
-                  for (Map.Entry<String, SortedSet<String>> entry : metadata.getAnnotations().entrySet()) {
-                    if (WildcardMatcher.match(fullName, entry.getKey())) {
-                      annotations.addAll(entry.getValue());
-                    }
-                  }
-                */
 
             return annotations;
         }
