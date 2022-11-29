@@ -79,7 +79,7 @@ namespace Confluent.SchemaRegistry
 
                 RuleContext ctx = new RuleContext(source, target,
                     subject, topic, headers, isKey, ruleMode, rule);
-                if (!ruleExecutors.TryGetValue(rule.Type, out IRuleExecutor ruleExecutor)) 
+                if (!ruleExecutors.TryGetValue(rule.Type.ToUpper(), out IRuleExecutor ruleExecutor)) 
                 {
                     return message;
                 }
