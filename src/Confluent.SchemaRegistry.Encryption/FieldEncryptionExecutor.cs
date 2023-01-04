@@ -26,7 +26,7 @@ namespace Confluent.SchemaRegistry.Encryption
         private Cryptor valueCryptor;
         private int cacheExpirySecs = 300;
         private int cacheSize = 1000;
-        private bool keyDeterministic = true;
+        private bool keyDeterministic = false;
         private bool valueDeterministic = false;
         private readonly IMemoryCache dekEncryptCache;
         private readonly IMemoryCache dekDecryptCache;
