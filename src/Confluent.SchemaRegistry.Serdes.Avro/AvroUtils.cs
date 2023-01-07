@@ -37,6 +37,12 @@ namespace Confluent.SchemaRegistry.Serdes
                 return message;
             }
 
+            RuleContext.FieldContext fieldContext = ctx.CurrentField();
+            if (fieldContext != null)
+            {
+                fieldContext.Type = GetType(schema);
+            }
+
             IUnionResolver writer;
             switch (schema.Tag)
             {
@@ -62,7 +68,7 @@ namespace Confluent.SchemaRegistry.Serdes
                     foreach (Field f in rs.Fields)
                     {
                         string fullName = rs.Fullname + "." + f.Name;
-                        using (ctx.EnterField(ctx, message, fullName, f.Name, GetType(f), GetInlineAnnotations(f)))
+                        using (ctx.EnterField(ctx, message, fullName, f.Name, GetType(f.Schema), GetInlineAnnotations(f)))
                         {
                             if (message is ISpecificRecord)
                             {
@@ -87,7 +93,6 @@ namespace Confluent.SchemaRegistry.Serdes
 
                     return message;
                 default:
-                    RuleContext.FieldContext fieldContext = ctx.CurrentField();
                     if (fieldContext != null)
                     {
                         ISet<string> intersect = new HashSet<string>(fieldContext.Annotations);
@@ -102,9 +107,9 @@ namespace Confluent.SchemaRegistry.Serdes
             }
         }
 
-        private static RuleContext.Type GetType(Field field)
+        private static RuleContext.Type GetType(Avro.Schema schema)
         {
-            switch (field.Schema.Tag)
+            switch (schema.Tag)
             {
                 case Avro.Schema.Type.Record:
                     return RuleContext.Type.Record;

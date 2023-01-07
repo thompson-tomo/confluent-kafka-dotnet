@@ -45,6 +45,7 @@ namespace Confluent.SchemaRegistry.Serdes
                 return message;
             }
 
+            RuleContext.FieldContext fieldContext = ctx.CurrentField();
             
             if (message.GetType().IsGenericType &&
                 (message.GetType().GetGenericTypeDefinition().IsAssignableFrom(typeof(List<>)) ||
@@ -91,7 +92,6 @@ namespace Confluent.SchemaRegistry.Serdes
             }
             else
             {
-                RuleContext.FieldContext fieldContext = ctx.CurrentField();
                 if (fieldContext != null)
                 {
                     ISet<string> intersect = new HashSet<string>(fieldContext.Annotations);
@@ -159,10 +159,6 @@ namespace Confluent.SchemaRegistry.Serdes
             if (field.IsMap)
             {
                 return RuleContext.Type.Map;
-            }
-            else if (field.IsRepeated)
-            {
-                return RuleContext.Type.Array;
             }
 
             switch (field.FieldType)

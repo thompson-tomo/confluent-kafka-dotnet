@@ -39,7 +39,14 @@ namespace Confluent.SchemaRegistry.Serdes
             {
                 return message;
             }
-            else if (schema.AllOf.Count > 0 || schema.AnyOf.Count > 0 || schema.OneOf.Count > 0)
+            
+            RuleContext.FieldContext fieldContext = ctx.CurrentField();
+            if (fieldContext != null)
+            {
+                fieldContext.Type = GetType(schema);
+            }
+            
+            if (schema.AllOf.Count > 0 || schema.AnyOf.Count > 0 || schema.OneOf.Count > 0)
             {
                 JToken jsonObject = JToken.FromObject(message);
                 foreach (JsonSchema subschema in schema.AllOf)
@@ -91,7 +98,7 @@ namespace Confluent.SchemaRegistry.Serdes
             }
             else
             {
-                RuleContext.FieldContext fieldContext = ctx.CurrentField();
+                fieldContext = ctx.CurrentField();
                 if (fieldContext != null)
                 {
                     switch (schema.Type)
