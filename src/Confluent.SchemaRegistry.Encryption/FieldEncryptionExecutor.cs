@@ -68,7 +68,7 @@ namespace Confluent.SchemaRegistry.Encryption
                         return obj;
                     }
 
-                    Cryptor cryptor = GetCryptor(ctx);
+                    Cryptor cryptor = GetCryptor(ctx.IsKey);
                     Dek dek = GetDekForEncrypt(ctx, cryptor);
                     ciphertext = cryptor.Encrypt(dek.RawDek, plaintext);
                     metadata = BuildMetadata(cryptor.DekFormat.ToString(), dek.EncryptedDek);
@@ -227,9 +227,9 @@ namespace Confluent.SchemaRegistry.Encryption
             return (TValue) val;
         }
 
-        private Cryptor GetCryptor(RuleContext ctx)
+        private Cryptor GetCryptor(bool isKey)
         {
-            return ctx.IsKey ? keyCryptor : valueCryptor;
+            return isKey ? keyCryptor : valueCryptor;
         }
 
         private static byte[] ToBytes(RuleContext.FieldContext fieldCtx, object obj)
