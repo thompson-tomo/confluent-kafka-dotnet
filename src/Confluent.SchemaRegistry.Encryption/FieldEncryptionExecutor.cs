@@ -22,8 +22,7 @@ namespace Confluent.SchemaRegistry.Encryption
         private static int LengthDekFormat = 4;
 
         protected string kekId;
-        private Cryptor keyCryptor;
-        private Cryptor valueCryptor;
+        private IDictionary<DekFormat, Cryptor> cryptors;
         private int cacheExpirySecs = 300;
         private int cacheSize = 1000;
         private bool keyDeterministic = false;
@@ -42,12 +41,17 @@ namespace Confluent.SchemaRegistry.Encryption
             {
                 SizeLimit = cacheSize
             });
-            keyCryptor = new Cryptor(DekFormat.AES256_SIV);
-            // TODO RULES fix
-            valueCryptor = new Cryptor(DekFormat.AES256_SIV);
+            cryptors = new Dictionary<DekFormat, Cryptor>();
         }
 
         public override string Type() => "ENCRYPT";
+
+        private static DekFormat GetKeyFormat(bool isDeterministic)
+        {
+            // TODO RULES fix gcm in tests
+            //return isDeterministic ? DekFormat.AES256_SIV : DekFormat.AES128_GCM;
+            return isDeterministic ? DekFormat.AES256_SIV : DekFormat.AES256_SIV;
+        }
 
         protected override FieldTransform newTransform(RuleContext ctx)
         {
@@ -159,7 +163,7 @@ namespace Confluent.SchemaRegistry.Encryption
                         throw new ArgumentException("invalid ciphertext");
                     }
 
-                    Cryptor cryptor = new Cryptor(Enum.Parse<DekFormat>(Encoding.UTF8.GetString(dekFormat)));
+                    Cryptor cryptor = GetCryptor(Enum.Parse<DekFormat>(Encoding.UTF8.GetString(dekFormat)));
                     Dek dek = GetDekForDecrypt(
                         ctx, Encoding.UTF8.GetString(kekId), encryptedDek);
                     return cryptor.Decrypt(dek.RawDek, ciphertext);
@@ -229,7 +233,19 @@ namespace Confluent.SchemaRegistry.Encryption
 
         private Cryptor GetCryptor(bool isKey)
         {
-            return isKey ? keyCryptor : valueCryptor;
+            return GetCryptor(GetKeyFormat(isKey ? keyDeterministic : valueDeterministic));
+        }
+
+        private Cryptor GetCryptor(DekFormat dekFormat)
+        {
+            bool exists = cryptors.TryGetValue(dekFormat, out Cryptor value);
+            if (exists) {
+                return value;
+            }
+
+            Cryptor cryptor = new Cryptor(dekFormat);
+            cryptors.Add(dekFormat, cryptor);
+            return cryptor;
         }
 
         private static byte[] ToBytes(RuleContext.FieldContext fieldCtx, object obj)
