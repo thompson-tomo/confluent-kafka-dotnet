@@ -58,22 +58,22 @@ namespace Confluent.SchemaRegistry
             Rule = rule;
         }
 
-        internal ISet<string> getAnnotations(string fullName)
+        internal ISet<string> getTags(string fullName)
         {
-            ISet<string> annotations = new HashSet<string>();
+            ISet<string> tags = new HashSet<string>();
             Metadata metadata = Target.Metadata;
-            if (metadata != null && metadata.Annotations != null)
+            if (metadata != null && metadata.Tags != null)
             {
-                foreach (var entry in metadata.Annotations)
+                foreach (var entry in metadata.Tags)
                 {
                     if (WildcardMatcher.Match(fullName, entry.Key))
                     {
-                        annotations.UnionWith(entry.Value);
+                        tags.UnionWith(entry.Value);
                     } 
                 }
             }
 
-            return annotations;
+            return tags;
         }
 
 
@@ -83,11 +83,11 @@ namespace Confluent.SchemaRegistry
         }
 
         public FieldContext EnterField(RuleContext ctx, object containingMessage,
-            string fullName, string name, Type type, ISet<string> annotations)
+            string fullName, string name, Type type, ISet<string> tags)
         {
-            ISet<string> allAnnotations = new HashSet<string>(annotations);
-            allAnnotations.UnionWith(ctx.getAnnotations(fullName));
-            return new FieldContext(ctx, containingMessage, fullName, name, type, allAnnotations);
+            ISet<string> allTags = new HashSet<string>(tags);
+            allTags.UnionWith(ctx.getTags(fullName));
+            return new FieldContext(ctx, containingMessage, fullName, name, type, allTags);
         }
 
         public class FieldContext : IDisposable
@@ -102,17 +102,17 @@ namespace Confluent.SchemaRegistry
 
             public Type Type { get; set; }
 
-            public ISet<string> Annotations { get; set; }
+            public ISet<string> Tags { get; set; }
 
             public FieldContext(RuleContext ruleContext, object containingMessage, string fullName, string name,
-                Type type, ISet<string> annotations)
+                Type type, ISet<string> tags)
             {
                 RuleContext = ruleContext;
                 ContainingMessage = containingMessage;
                 FullName = fullName;
                 Name = name;
                 Type = type;
-                Annotations = annotations;
+                Tags = tags;
                 RuleContext.fieldContexts.Push(this);
             }
 

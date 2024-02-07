@@ -68,7 +68,7 @@ namespace Confluent.SchemaRegistry.Serdes
                     foreach (Field f in rs.Fields)
                     {
                         string fullName = rs.Fullname + "." + f.Name;
-                        using (ctx.EnterField(ctx, message, fullName, f.Name, GetType(f.Schema), GetInlineAnnotations(f)))
+                        using (ctx.EnterField(ctx, message, fullName, f.Name, GetType(f.Schema), GetInlineTags(f)))
                         {
                             if (message is ISpecificRecord)
                             {
@@ -95,8 +95,8 @@ namespace Confluent.SchemaRegistry.Serdes
                 default:
                     if (fieldContext != null)
                     {
-                        ISet<string> intersect = new HashSet<string>(fieldContext.Annotations);
-                        intersect.IntersectWith(ctx.Rule.Annotations);
+                        ISet<string> intersect = new HashSet<string>(fieldContext.Tags);
+                        intersect.IntersectWith(ctx.Rule.Tags);
                         if (intersect.Count != 0)
                         {
                             return fieldTransform.Invoke(ctx, fieldContext, message);
@@ -143,9 +143,9 @@ namespace Confluent.SchemaRegistry.Serdes
             }
         }
 
-        private static ISet<string> GetInlineAnnotations(Field field)
+        private static ISet<string> GetInlineTags(Field field)
         {
-            ISet<string> annotations = new HashSet<string>();
+            ISet<string> tags = new HashSet<string>();
             // TODO RULES
             /*
             if (fd.getOptions().hasExtension(MetaProto.fieldMeta))
@@ -154,7 +154,7 @@ namespace Confluent.SchemaRegistry.Serdes
                 annotations.addAll(meta.getAnnotationList());
             }
             */
-            return annotations;
+            return tags;
         }
 
         private static IUnionResolver GetResolver(Avro.Schema schema, object message)

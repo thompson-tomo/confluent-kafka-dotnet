@@ -81,7 +81,7 @@ namespace Confluent.SchemaRegistry.Serdes
                 foreach (var it in schema.Properties)
                 {
                     string fullName = path + '.' + it.Key;
-                    using (ctx.EnterField(ctx, message, fullName, it.Key, GetType(it.Value), GetInlineAnnotations(it.Value)))
+                    using (ctx.EnterField(ctx, message, fullName, it.Key, GetType(it.Value), GetInlineTags(it.Value)))
                     {
                         FieldAccessor fieldAccessor = new FieldAccessor(message.GetType(), it.Key);
                         object value = fieldAccessor.GetFieldValue(message);
@@ -107,8 +107,8 @@ namespace Confluent.SchemaRegistry.Serdes
                         case JsonObjectType.Integer:
                         case JsonObjectType.Number:
                         case JsonObjectType.String:
-                            ISet<string> intersect = new HashSet<string>(fieldContext.Annotations);
-                            intersect.IntersectWith(ctx.Rule.Annotations);
+                            ISet<string> intersect = new HashSet<string>(fieldContext.Tags);
+                            intersect.IntersectWith(ctx.Rule.Tags);
                             if (intersect.Count != 0)
                             {
                                 return fieldTransform.Invoke(ctx, fieldContext, message);
@@ -146,9 +146,9 @@ namespace Confluent.SchemaRegistry.Serdes
             }
         }
 
-        private static ISet<string> GetInlineAnnotations(JsonSchema schema)
+        private static ISet<string> GetInlineTags(JsonSchema schema)
         {
-            ISet<string> annotations = new HashSet<string>();
+            ISet<string> tags = new HashSet<string>();
             // TODO RULES
             /*
             if (fd.getOptions().hasExtension(MetaProto.fieldMeta))
@@ -157,7 +157,7 @@ namespace Confluent.SchemaRegistry.Serdes
                 annotations.addAll(meta.getAnnotationList());
             }
             */
-            return annotations;
+            return tags;
         }
 
         class FieldAccessor

@@ -22,8 +22,8 @@ namespace Confluent.SchemaRegistry
     [DataContract]
     public class Metadata
     {
-        [DataMember(Name = "annotations")]
-        public IDictionary<string, ISet<string>> Annotations { get; set; }
+        [DataMember(Name = "tags")]
+        public IDictionary<string, ISet<string>> Tags { get; set; }
 
         [DataMember(Name = "properties")]
         public IDictionary<string, string> Properties { get; set; }
@@ -36,11 +36,11 @@ namespace Confluent.SchemaRegistry
         /// </summary>
         private Metadata() { }
 
-        public Metadata(IDictionary<string, ISet<string>> annotations, 
+        public Metadata(IDictionary<string, ISet<string>> tags, 
             IDictionary<string, string> properties, 
             ISet<string> sensitive)
         {
-            Annotations = annotations;
+            Tags = tags;
             Properties = properties;
             Sensitive = sensitive;
         }

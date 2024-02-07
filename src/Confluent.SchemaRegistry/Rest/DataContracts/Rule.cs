@@ -35,20 +35,20 @@ namespace Confluent.SchemaRegistry
         public string Type { get; set; }
         
         [DataMember(Name = "annotations")]
-        public ISet<string> Annotations { get; set; }
+        public ISet<string> Tags { get; set; }
         
         /// <summary>
         ///     Empty constructor for serialization
         /// </summary>
         private Rule() { }
 
-        public Rule(string name, RuleKind kind, RuleMode mode, string type, ISet<string> annotations)
+        public Rule(string name, RuleKind kind, RuleMode mode, string type, ISet<string> tags)
         {
             Name = name;
             Kind = kind;
             Mode = mode;
             Type = type;
-            Annotations = annotations;
+            Tags = tags;
         }
     }
 }

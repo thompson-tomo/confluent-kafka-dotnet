@@ -73,7 +73,7 @@ namespace Confluent.SchemaRegistry.Serdes
                 foreach (FieldDescriptor fd in copy.Descriptor.Fields.InDeclarationOrder())
                 {
                     FieldDescriptorProto schemaFd = FindFieldByName(messageType, fd.Name);
-                    using (ctx.EnterField(ctx, copy, fd.FullName, fd.Name, GetType(fd), GetInlineAnnotations(fd)))
+                    using (ctx.EnterField(ctx, copy, fd.FullName, fd.Name, GetType(fd), GetInlineTags(fd)))
                     {
                         object value = fd.Accessor.GetValue(copy);
                         DescriptorProto d = messageType;
@@ -94,8 +94,8 @@ namespace Confluent.SchemaRegistry.Serdes
             {
                 if (fieldContext != null)
                 {
-                    ISet<string> intersect = new HashSet<string>(fieldContext.Annotations);
-                    intersect.IntersectWith(ctx.Rule.Annotations);
+                    ISet<string> intersect = new HashSet<string>(fieldContext.Tags);
+                    intersect.IntersectWith(ctx.Rule.Tags);
                     if (intersect.Count != 0)
                     {
                         return fieldTransform.Invoke(ctx, fieldContext, message);
@@ -192,9 +192,9 @@ namespace Confluent.SchemaRegistry.Serdes
             }
         }
 
-        private static ISet<string> GetInlineAnnotations(FieldDescriptor fd)
+        private static ISet<string> GetInlineTags(FieldDescriptor fd)
         {
-            ISet<string> annotations = new HashSet<string>();
+            ISet<string> tags = new HashSet<string>();
             // TODO RULES
             /*
             if (fd.getOptions().hasExtension(MetaProto.fieldMeta))
@@ -203,7 +203,7 @@ namespace Confluent.SchemaRegistry.Serdes
                 annotations.addAll(meta.getAnnotationList());
             }
             */
-            return annotations;
+            return tags;
         }
 
         public static FileDescriptorSet Parse(string schema, IDictionary<string, string> imports)
