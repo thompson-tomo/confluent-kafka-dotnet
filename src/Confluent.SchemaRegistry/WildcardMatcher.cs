@@ -43,7 +43,8 @@ namespace Confluent.SchemaRegistry
             }
 
             Regex wildcardRegexp = new Regex(WildcardToRegexp(wildcardMatcher, '.'));
-            return wildcardRegexp.IsMatch(str);
+            Match match = wildcardRegexp.Match(str);
+            return match.Success && match.Value.Length == str.Length;
         }
 
         private static string WildcardToRegexp(string globExp, char separator)
